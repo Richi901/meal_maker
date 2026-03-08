@@ -228,6 +228,34 @@ export default function App() {
       freezer: []
     };
   });
+  const [customInventory, setCustomInventory] = useState<{ [key in InventoryCategory]: string[] }>(() => {
+    const saved = localStorage.getItem('mealmaker_custom_inventory');
+    if (saved) return JSON.parse(saved);
+    
+    // Initial migration: any item in inventory that isn't a staple should be a custom item
+    const initialCustom: { [key in InventoryCategory]: string[] } = {
+      pantry: [],
+      refrigerator: [],
+      freezer: []
+    };
+
+    const categories: InventoryCategory[] = ['pantry', 'refrigerator', 'freezer'];
+    const staplesMap = {
+      pantry: PANTRY_STAPLES,
+      refrigerator: REFRIGERATOR_STAPLES,
+      freezer: FREEZER_STAPLES
+    };
+
+    // We need the initial inventory value for migration
+    const savedInv = localStorage.getItem('mealmaker_inventory');
+    const initialInv = savedInv ? JSON.parse(savedInv) : { pantry: [], refrigerator: [], freezer: [] };
+
+    categories.forEach(cat => {
+      initialCustom[cat] = initialInv[cat].filter((item: string) => !staplesMap[cat].includes(item));
+    });
+
+    return initialCustom;
+  });
   const [activeInventoryTab, setActiveInventoryTab] = useState<InventoryCategory>('pantry');
   const [inputPantryStaple, setInputPantryStaple] = useState('');
   const [mealPlan, setMealPlan] = useState<{ [key: string]: Recipe[] }>(() => {
@@ -255,6 +283,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mealmaker_inventory', JSON.stringify(inventory));
   }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_custom_inventory', JSON.stringify(customInventory));
+  }, [customInventory]);
 
   useEffect(() => {
     localStorage.setItem('mealmaker_mealplan', JSON.stringify(mealPlan));
@@ -379,13 +411,46 @@ export default function App() {
   const addCustomPantryStaple = (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = inputPantryStaple.trim();
-    if (trimmed && !inventory[activeInventoryTab].includes(trimmed)) {
-      setInventory(prev => ({
-        ...prev,
-        [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
-      }));
+    if (trimmed) {
+      const isStaple = 
+        (activeInventoryTab === 'pantry' && PANTRY_STAPLES.includes(trimmed)) ||
+        (activeInventoryTab === 'refrigerator' && REFRIGERATOR_STAPLES.includes(trimmed)) ||
+        (activeInventoryTab === 'freezer' && FREEZER_STAPLES.includes(trimmed));
+
+      if (isStaple) {
+        if (!inventory[activeInventoryTab].includes(trimmed)) {
+          setInventory(prev => ({
+            ...prev,
+            [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
+          }));
+        }
+      } else {
+        if (!customInventory[activeInventoryTab].includes(trimmed)) {
+          setCustomInventory(prev => ({
+            ...prev,
+            [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
+          }));
+        }
+        if (!inventory[activeInventoryTab].includes(trimmed)) {
+          setInventory(prev => ({
+            ...prev,
+            [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
+          }));
+        }
+      }
       setInputPantryStaple('');
     }
+  };
+
+  const removeCustomInventoryItem = (item: string, category: InventoryCategory) => {
+    setCustomInventory(prev => ({
+      ...prev,
+      [category]: prev[category].filter(i => i !== item)
+    }));
+    setInventory(prev => ({
+      ...prev,
+      [category]: prev[category].filter(i => i !== item)
+    }));
   };
 
   const addToMealPlan = (recipe: Recipe, day: string) => {
@@ -803,11 +868,11 @@ export default function App() {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.8 }}
                           key={ing}
-                          className="px-3 py-1.5 bg-[#E6E0D4] text-[#5A5A40] rounded-full text-xs font-medium flex items-center gap-1.5 group"
+                          className="px-2.5 py-1 bg-[#E6E0D4] text-[#5A5A40] rounded-full text-[11px] font-medium flex items-center gap-1.5 group"
                         >
                           {ing}
                           <button onClick={() => removeIngredient(ing)} className="hover:text-red-500 transition-colors">
-                            <X size={14} />
+                            <X size={12} />
                           </button>
                         </motion.span>
                       ))}
@@ -1195,68 +1260,66 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-12">
-                  {activeInventoryTab === 'pantry' && PANTRY_STAPLES.map(staple => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-12">
+                  {(activeInventoryTab === 'pantry' ? PANTRY_STAPLES : 
+                    activeInventoryTab === 'refrigerator' ? REFRIGERATOR_STAPLES : 
+                    FREEZER_STAPLES).map(staple => (
                     <button
                       key={staple}
                       onClick={() => togglePantryStaple(staple)}
                       className={cn(
-                        "p-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-between group",
-                        inventory.pantry.includes(staple)
+                        "px-3 py-2 rounded-full border text-[11px] font-medium transition-all flex items-center justify-between group",
+                        inventory[activeInventoryTab].includes(staple)
                           ? "bg-[#5A5A40] text-white border-[#5A5A40]"
                           : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
                       )}
                     >
-                      {staple}
-                      {inventory.pantry.includes(staple) ? (
-                        <Check size={16} />
+                      <span className="truncate pr-1">{staple}</span>
+                      {inventory[activeInventoryTab].includes(staple) ? (
+                        <Check size={12} className="shrink-0" />
                       ) : (
-                        <Plus size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <Plus size={12} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                       )}
                     </button>
                   ))}
-                  {activeInventoryTab === 'refrigerator' && REFRIGERATOR_STAPLES.map(staple => (
-                    <button
-                      key={staple}
-                      onClick={() => togglePantryStaple(staple)}
+
+                  {customInventory[activeInventoryTab].map(item => (
+                    <div
+                      key={item}
                       className={cn(
-                        "p-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-between group",
-                        inventory.refrigerator.includes(staple)
+                        "px-3 py-2 rounded-full border text-[11px] font-medium transition-all flex items-center justify-between group",
+                        inventory[activeInventoryTab].includes(item)
                           ? "bg-[#5A5A40] text-white border-[#5A5A40]"
                           : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
                       )}
                     >
-                      {staple}
-                      {inventory.refrigerator.includes(staple) ? (
-                        <Check size={16} />
-                      ) : (
-                        <Plus size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </button>
-                  ))}
-                  {activeInventoryTab === 'freezer' && FREEZER_STAPLES.map(staple => (
-                    <button
-                      key={staple}
-                      onClick={() => togglePantryStaple(staple)}
-                      className={cn(
-                        "p-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-between group",
-                        inventory.freezer.includes(staple)
-                          ? "bg-[#5A5A40] text-white border-[#5A5A40]"
-                          : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
-                      )}
-                    >
-                      {staple}
-                      {inventory.freezer.includes(staple) ? (
-                        <Check size={16} />
-                      ) : (
-                        <Plus size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </button>
+                      <button 
+                        onClick={() => togglePantryStaple(item)}
+                        className="flex-1 text-left truncate pr-1"
+                      >
+                        {item}
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {inventory[activeInventoryTab].includes(item) && <Check size={12} />}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeCustomInventoryItem(item, activeInventoryTab);
+                          }}
+                          className={cn(
+                            "hover:text-red-500 transition-colors p-0.5 rounded-full hover:bg-black/5",
+                            inventory[activeInventoryTab].includes(item) ? "hover:bg-white/20" : ""
+                          )}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
 
                 <div className="mb-12">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">
                     Add to {activeInventoryTab}
                   </h3>
                   <form onSubmit={addCustomPantryStaple} className="flex gap-3 max-w-md">
@@ -1274,27 +1337,6 @@ export default function App() {
                       Add
                     </button>
                   </form>
-
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {inventory[activeInventoryTab]
-                      .filter(s => {
-                        if (activeInventoryTab === 'pantry') return !PANTRY_STAPLES.includes(s);
-                        if (activeInventoryTab === 'refrigerator') return !REFRIGERATOR_STAPLES.includes(s);
-                        if (activeInventoryTab === 'freezer') return !FREEZER_STAPLES.includes(s);
-                        return true;
-                      })
-                      .map(staple => (
-                        <span 
-                          key={staple}
-                          className="px-3 py-1.5 bg-[#E6E0D4] text-[#5A5A40] rounded-full text-xs font-medium flex items-center gap-1.5"
-                        >
-                          {staple}
-                          <button onClick={() => togglePantryStaple(staple)} className="hover:text-red-500 transition-colors">
-                            <X size={14} />
-                          </button>
-                        </span>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="mt-12 p-6 bg-[#F5F5F0] rounded-3xl">
