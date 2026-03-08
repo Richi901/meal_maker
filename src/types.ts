@@ -1,5 +1,6 @@
 export interface Recipe {
   id: string;
+  type?: 'recipe';
   title: string;
   description: string;
   prepTime: string;
@@ -18,6 +19,14 @@ export interface Recipe {
   instructions: string[];
   dietaryTags: string[];
 }
+
+export interface Note {
+  id: string;
+  type: 'note';
+  text: string;
+}
+
+export type MealItem = Recipe | Note;
 
 export interface UserPreferences {
   ingredients: string[];

@@ -47,7 +47,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from './lib/utils';
-import { Recipe } from './types';
+import { Recipe, Note, MealItem } from './types';
 import { translations, Language } from './translations';
 
 const CUISINES = [
@@ -99,12 +99,13 @@ const FREEZER_STAPLES = [
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
-function DraggableRecipe({ recipe, day, onRecipeClick, onRemove }: { 
-  recipe: Recipe, 
+function DraggableMealItem({ item, day, onRecipeClick, onRemove }: { 
+  item: MealItem, 
   day: string, 
   onRecipeClick: (r: Recipe) => void,
   onRemove: (id: string, day: string) => void 
 }) {
+  const isNote = 'type' in item && item.type === 'note';
   const {
     attributes,
     listeners,
@@ -112,7 +113,7 @@ function DraggableRecipe({ recipe, day, onRecipeClick, onRemove }: {
     transform,
     transition,
     isDragging
-  } = useSortable({ id: recipe.id });
+  } = useSortable({ id: item.id });
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -124,23 +125,34 @@ function DraggableRecipe({ recipe, day, onRecipeClick, onRemove }: {
     <div 
       ref={setNodeRef} 
       style={style}
-      className="bg-[#F5F5F0] p-3 rounded-2xl relative group cursor-pointer hover:bg-[#E6E0D4] transition-colors"
-      onClick={() => onRecipeClick(recipe)}
+      className={cn(
+        "p-3 rounded-2xl relative group cursor-pointer transition-colors",
+        isNote ? "bg-orange-50 border border-orange-100 hover:bg-orange-100" : "bg-[#F5F5F0] hover:bg-[#E6E0D4]"
+      )}
+      onClick={() => !isNote && onRecipeClick(item as Recipe)}
     >
       <div {...attributes} {...listeners} className="absolute left-0 top-0 bottom-0 w-10 flex items-center justify-center text-[#8E8E8E] opacity-100 lg:opacity-0 lg:group-hover:opacity-100 cursor-grab active:cursor-grabbing z-10">
         <GripVertical size={16} />
       </div>
       <div className="pl-8">
-        <h4 className="text-xs font-bold leading-tight pr-4">{recipe.title}</h4>
-        <div className="flex items-center gap-2 mt-2 opacity-60">
-          <Clock size={10} />
-          <span className="text-[10px]">{recipe.totalTime}</span>
-        </div>
+        <h4 className="text-xs font-bold leading-tight pr-4">{isNote ? (item as Note).text : (item as Recipe).title}</h4>
+        {!isNote && (
+          <div className="flex items-center gap-2 mt-2 opacity-60">
+            <Clock size={10} />
+            <span className="text-[10px]">{(item as Recipe).totalTime}</span>
+          </div>
+        )}
+        {isNote && (
+          <div className="flex items-center gap-2 mt-2 opacity-60">
+            <Box size={10} />
+            <span className="text-[10px] uppercase tracking-wider font-bold">Note</span>
+          </div>
+        )}
       </div>
       <button 
         onClick={(e) => {
           e.stopPropagation();
-          onRemove(recipe.id, day);
+          onRemove(item.id, day);
         }}
         className="absolute top-2 right-2 text-[#8E8E8E] hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
       >
@@ -150,9 +162,9 @@ function DraggableRecipe({ recipe, day, onRecipeClick, onRemove }: {
   );
 }
 
-function DroppableDay({ day, recipes, onRecipeClick, onRemove }: { 
+function DroppableDay({ day, items, onRecipeClick, onRemove }: { 
   day: string, 
-  recipes: Recipe[], 
+  items: MealItem[], 
   onRecipeClick: (r: Recipe) => void,
   onRemove: (id: string, day: string) => void 
 }) {
@@ -168,12 +180,12 @@ function DroppableDay({ day, recipes, onRecipeClick, onRemove }: {
           isOver ? "bg-[#F5F5F0] border-[#5A5A40]" : "border-[#E6E0D4]"
         )}
       >
-        <SortableContext items={recipes.map(r => r.id)} strategy={verticalListSortingStrategy}>
-          {recipes.length > 0 ? (
-            recipes.map(recipe => (
-              <DraggableRecipe 
-                key={recipe.id} 
-                recipe={recipe} 
+        <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+          {items.length > 0 ? (
+            items.map(item => (
+              <DraggableMealItem 
+                key={item.id} 
+                item={item} 
                 day={day} 
                 onRecipeClick={onRecipeClick} 
                 onRemove={onRemove} 
@@ -276,13 +288,14 @@ export default function App() {
   });
   const [activeInventoryTab, setActiveInventoryTab] = useState<InventoryCategory>('pantry');
   const [inputPantryStaple, setInputPantryStaple] = useState('');
-  const [mealPlan, setMealPlan] = useState<{ [key: string]: Recipe[] }>(() => {
+  const [inputNote, setInputNote] = useState('');
+  const [mealPlan, setMealPlan] = useState<{ [key: string]: MealItem[] }>(() => {
     const saved = localStorage.getItem('mealmaker_mealplan');
     return saved ? JSON.parse(saved) : {};
   });
   const [viewingPlannerRecipe, setViewingPlannerRecipe] = useState<Recipe | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
+  const [activeItem, setActiveItem] = useState<MealItem | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openPlannerId, setOpenPlannerId] = useState<string | null>(null);
 
@@ -347,11 +360,11 @@ export default function App() {
     const { active } = event;
     setActiveId(active.id as string);
     
-    // Find the recipe being dragged
+    // Find the item being dragged
     for (const day of DAYS_OF_WEEK) {
-      const recipe = mealPlan[day]?.find(r => r.id === active.id);
-      if (recipe) {
-        setActiveRecipe(recipe);
+      const item = mealPlan[day]?.find(i => i.id === active.id);
+      if (item) {
+        setActiveItem(item);
         break;
       }
     }
@@ -360,7 +373,7 @@ export default function App() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
-    setActiveRecipe(null);
+    setActiveItem(null);
 
     if (!over) return;
 
@@ -371,12 +384,12 @@ export default function App() {
     let sourceDay: string | null = null;
     let destDay: string | null = null;
 
-    // Check if overId is a day container or a recipe within a day
+    // Check if overId is a day container or an item within a day
     if ((DAYS_OF_WEEK as readonly string[]).includes(overId)) {
       destDay = overId;
     } else {
       for (const day of DAYS_OF_WEEK) {
-        if (mealPlan[day]?.some(r => r.id === overId)) {
+        if (mealPlan[day]?.some(i => i.id === overId)) {
           destDay = day;
           break;
         }
@@ -384,7 +397,7 @@ export default function App() {
     }
 
     for (const day of DAYS_OF_WEEK) {
-      if (mealPlan[day]?.some(r => r.id === activeId)) {
+      if (mealPlan[day]?.some(i => i.id === activeId)) {
         sourceDay = day;
         break;
       }
@@ -394,8 +407,8 @@ export default function App() {
 
     if (sourceDay === destDay) {
       // Reorder within the same day
-      const oldIndex = mealPlan[sourceDay].findIndex(r => r.id === activeId);
-      const newIndex = mealPlan[destDay].findIndex(r => r.id === overId);
+      const oldIndex = mealPlan[sourceDay].findIndex(i => i.id === activeId);
+      const newIndex = mealPlan[destDay].findIndex(i => i.id === overId);
       
       if (oldIndex !== newIndex && newIndex !== -1) {
         setMealPlan(prev => ({
@@ -405,11 +418,11 @@ export default function App() {
       }
     } else {
       // Move to a different day
-      const recipeToMove = mealPlan[sourceDay].find(r => r.id === activeId);
-      if (recipeToMove) {
+      const itemToMove = mealPlan[sourceDay].find(i => i.id === activeId);
+      if (itemToMove) {
         setMealPlan(prev => {
-          const newSourceList = prev[sourceDay!].filter(r => r.id !== activeId);
-          const newDestList = [...(prev[destDay!] || []), recipeToMove];
+          const newSourceList = prev[sourceDay!].filter(i => i.id !== activeId);
+          const newDestList = [...(prev[destDay!] || []), itemToMove];
           return {
             ...prev,
             [sourceDay!]: newSourceList,
@@ -481,6 +494,25 @@ export default function App() {
       [day]: [...(prev[day] || []), recipe]
     }));
     setOpenPlannerId(null);
+  };
+
+  const addNoteToPlanner = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!inputNote.trim()) return;
+    
+    const newNote: Note = {
+      id: `note-${Date.now()}`,
+      type: 'note',
+      text: inputNote.trim()
+    };
+    
+    // Default to Monday or first day
+    const day = DAYS_OF_WEEK[0];
+    setMealPlan(prev => ({
+      ...prev,
+      [day]: [...(prev[day] || []), newNote]
+    }));
+    setInputNote('');
   };
 
   const removeFromMealPlan = (recipeId: string, day: string) => {
@@ -1411,20 +1443,39 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-8"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
-                    <Calendar size={24} />
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
+                      <Calendar size={24} />
+                    </div>
+                    <h2 className="text-2xl font-serif font-bold">{t('weeklyPlanner')}</h2>
                   </div>
-                  <h2 className="text-2xl font-serif font-bold">{t('weeklyPlanner')}</h2>
+                  
+                  <div className="flex items-center gap-4">
+                    <form onSubmit={addNoteToPlanner} className="flex items-center gap-2 bg-[#F5F5F0] p-1.5 rounded-2xl border border-[#E6E0D4]">
+                      <input 
+                        type="text"
+                        value={inputNote}
+                        onChange={(e) => setInputNote(e.target.value)}
+                        placeholder={lang === 'fr' ? 'Ajouter une note (ex: Resto)' : 'Add a note (e.g. Take-out)'}
+                        className="bg-transparent border-none focus:ring-0 text-xs px-3 py-1.5 w-40 sm:w-60"
+                      />
+                      <button 
+                        type="submit"
+                        className="bg-[#5A5A40] text-white p-1.5 rounded-xl hover:scale-105 transition-transform"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </form>
+                    
+                    <button 
+                      onClick={() => setMealPlan({})}
+                      className="text-xs font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
+                    >
+                      {t('clearAll')}
+                    </button>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => setMealPlan({})}
-                  className="text-xs font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
-                >
-                  {t('clearAll')}
-                </button>
-              </div>
 
               <DndContext 
                 sensors={sensors}
@@ -1437,7 +1488,7 @@ export default function App() {
                     <DroppableDay 
                       key={day} 
                       day={t(`days.${day}`)} 
-                      recipes={mealPlan[day] || []} 
+                      items={mealPlan[day] || []} 
                       onRecipeClick={setViewingPlannerRecipe}
                       onRemove={removeFromMealPlan}
                     />
@@ -1453,13 +1504,20 @@ export default function App() {
                     },
                   }),
                 }}>
-                  {activeId && activeRecipe ? (
-                    <div className="bg-white p-3 rounded-2xl shadow-2xl border-2 border-[#5A5A40] scale-105 rotate-2">
-                      <h4 className="text-xs font-bold leading-tight pr-4">{activeRecipe.title}</h4>
-                      <div className="flex items-center gap-2 mt-2 opacity-60">
-                        <Clock size={10} />
-                        <span className="text-[10px]">{activeRecipe.totalTime}</span>
-                      </div>
+                  {activeId && activeItem ? (
+                    <div className={cn(
+                      "p-3 rounded-2xl shadow-2xl border-2 border-[#5A5A40] scale-105 rotate-2",
+                      'type' in activeItem && activeItem.type === 'note' ? "bg-orange-50" : "bg-white"
+                    )}>
+                      <h4 className="text-xs font-bold leading-tight pr-4">
+                        {'type' in activeItem && activeItem.type === 'note' ? (activeItem as Note).text : (activeItem as Recipe).title}
+                      </h4>
+                      {!('type' in activeItem && activeItem.type === 'note') && (
+                        <div className="flex items-center gap-2 mt-2 opacity-60">
+                          <Clock size={10} />
+                          <span className="text-[10px]">{(activeItem as Recipe).totalTime}</span>
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </DragOverlay>
