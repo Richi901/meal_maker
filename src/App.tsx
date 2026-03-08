@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { 
   Plus, 
+  Minus,
   X, 
   ChefHat, 
   Clock, 
@@ -232,6 +233,7 @@ export default function App() {
   const [inputRestriction, setInputRestriction] = useState('');
   const [cuisine, setCuisine] = useState('General');
   const [mealType, setMealType] = useState('Any');
+  const [servings, setServings] = useState(2);
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
     const saved = localStorage.getItem('mealmaker_recipes');
     return saved ? JSON.parse(saved) : [];
@@ -617,12 +619,13 @@ export default function App() {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      const model = "gemini-3-flash-preview";
+      const model = "gemini-3.1-flash-lite-preview";
 
       const existingTitles = recipes.map(r => r.title).join(', ');
       const allInventory = [...inventory.pantry, ...inventory.refrigerator, ...inventory.freezer];
-      const prompt = `Generate 3 creative and delicious recipes based on these parameters:
+      const prompt = `Generate 2 creative and delicious recipes based on these parameters:
       LANGUAGE: ${lang === 'fr' ? 'French' : 'English'}
+      SERVINGS: ${servings}
       PRIORITY Kitchen Ingredients (Use these first): ${ingredients.join(', ')}
       Secondary Inventory (Pantry/Fridge/Freezer): ${allInventory.join(', ')}
       Meal Type: ${mealType === 'Any' ? 'Any suitable meal' : mealType}
@@ -633,7 +636,7 @@ export default function App() {
       For each recipe, identify which ingredients are "missing" (not in the priority or secondary lists).
       Ensure the cost per portion is an estimate: $ (budget), $$ (moderate), $$$ (premium).
       Ensure calories and protein are realistic estimates per serving.
-      Specify the number of servings the recipe makes.
+      Specify the number of servings the recipe makes (it MUST be ${servings}).
       IMPORTANT: All text content (title, description, instructions, ingredients) MUST be in ${lang === 'fr' ? 'French' : 'English'}.`;
 
       // Retry logic for 503 errors (High Demand)
@@ -647,6 +650,8 @@ export default function App() {
             model,
             contents: prompt,
             config: {
+              systemInstruction: "You are a helpful culinary assistant. Provide concise, high-quality recipes in JSON format. Keep instructions clear but brief to minimize latency.",
+              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
               responseMimeType: "application/json",
               responseSchema: {
                 type: Type.ARRAY,
@@ -984,6 +989,25 @@ export default function App() {
                             {t(`mealTypes.${type}`)}
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">{t('servingsLabel')}</h3>
+                      <div className="flex items-center gap-4 bg-[#F5F5F0] p-2 rounded-2xl border border-[#E6E0D4]">
+                        <button 
+                          onClick={() => setServings(Math.max(1, servings - 1))}
+                          className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-[#5A5A40] shadow-sm hover:bg-[#E6E0D4] transition-colors"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="flex-1 text-center font-bold text-[#5A5A40]">{servings}</span>
+                        <button 
+                          onClick={() => setServings(Math.min(12, servings + 1))}
+                          className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-[#5A5A40] shadow-sm hover:bg-[#E6E0D4] transition-colors"
+                        >
+                          <Plus size={16} />
+                        </button>
                       </div>
                     </div>
 
