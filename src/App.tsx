@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   Trash2,
   ChevronRight,
+  ArrowUp,
   Calendar,
   Box,
   Users,
@@ -211,6 +212,18 @@ export default function App() {
     return (saved as Language) || 'en';
   });
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const t = (key: string) => {
     const keys = key.split('.');
     let result: any = translations[lang];
@@ -299,6 +312,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<MealItem | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [openPlannerId, setOpenPlannerId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1762,6 +1776,22 @@ export default function App() {
               )}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Back to Top Button */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-8 right-8 z-[90] bg-[#5A5A40] text-white px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 hover:bg-[#4A4A35] transition-colors group"
+          >
+            <ArrowUp size={18} className="group-hover:-translate-y-1 transition-transform" />
+            <span className="text-xs font-bold uppercase tracking-wider pr-1">{t('backToTop')}</span>
+          </motion.button>
         )}
       </AnimatePresence>
 
