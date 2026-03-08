@@ -471,9 +471,11 @@ export default function App() {
     }
   };
 
+  const hasInventory = Object.values(inventory).some(items => items.length > 0);
+
   const generateRecipes = async (append = false) => {
-    if (ingredients.length === 0) {
-      setError("Please add at least one ingredient.");
+    if (ingredients.length === 0 && !hasInventory) {
+      setError("Please add at least one ingredient or item to your kitchen inventory.");
       return;
     }
 
@@ -513,9 +515,9 @@ export default function App() {
       Ensure calories and protein are realistic estimates per serving.
       Specify the number of servings the recipe makes.`;
 
-      // Retry logic for 503 errors
+      // Retry logic for 503 errors (High Demand)
       let attempts = 0;
-      const maxAttempts = 3;
+      const maxAttempts = 5; // Increased from 3 to 5
       let lastError: any = null;
 
       while (attempts < maxAttempts) {
@@ -584,12 +586,14 @@ export default function App() {
             err?.message?.includes('503') || 
             err?.message?.includes('high demand') ||
             errorString.includes('503') ||
-            errorString.includes('unavailable');
+            errorString.includes('unavailable') ||
+            errorString.includes('high_demand');
           
           if (is503 && attempts < maxAttempts - 1) {
             attempts++;
-            // Exponential backoff: 1.5s, 3s, 6s
-            await new Promise(resolve => setTimeout(resolve, 1500 * Math.pow(2, attempts - 1)));
+            // Exponential backoff with jitter: 2s, 4s, 8s, 16s
+            const delay = (Math.pow(2, attempts) * 1000) + (Math.random() * 1000);
+            await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
           throw err; 
@@ -605,12 +609,13 @@ export default function App() {
         err?.message?.includes('503') || 
         err?.message?.includes('high demand') ||
         errorString.includes('503') ||
-        errorString.includes('unavailable');
+        errorString.includes('unavailable') ||
+        errorString.includes('high_demand');
 
       if (is503) {
-        setError("The AI is currently very busy (High Demand). We tried a few times, but it's still busy. Please wait 10-20 seconds and try again.");
+        setError("The AI is currently experiencing high demand (503 Service Unavailable). We've attempted to reconnect 5 times automatically, but the service is still busy. Please wait about 30 seconds and try again.");
       } else {
-        setError("We couldn't generate recipes right now. Please check your connection or try again later.");
+        setError("We encountered an unexpected error while generating recipes. Please check your connection and try again.");
       }
     } finally {
       setLoading(false);
@@ -901,7 +906,7 @@ export default function App() {
 
                   <button 
                     onClick={() => generateRecipes(false)}
-                    disabled={loading || ingredients.length === 0}
+                    disabled={loading || (ingredients.length === 0 && !hasInventory)}
                     className="w-full mt-8 py-4 bg-[#5A5A40] text-white rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#4A4A35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#5A5A40]/20"
                   >
                     {loading ? (
