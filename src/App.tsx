@@ -48,6 +48,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from './lib/utils';
 import { Recipe } from './types';
+import { translations, Language } from './translations';
 
 const CUISINES = [
   "General",
@@ -59,7 +60,7 @@ const CUISINES = [
   "Indian",
   "American",
   "Japanese"
-];
+] as const;
 
 const DIETARY_OPTIONS = [
   "Vegetarian",
@@ -68,8 +69,10 @@ const DIETARY_OPTIONS = [
   "Dairy-Free",
   "Keto",
   "Paleo",
-  "Nut-Free"
-];
+  "Nut-Free",
+  "High-Protein",
+  "Low-Calorie"
+] as const;
 
 const MEAL_TYPES = [
   "Any",
@@ -78,7 +81,7 @@ const MEAL_TYPES = [
   "Dinner",
   "Snack",
   "Dessert"
-];
+] as const;
 
 const PANTRY_STAPLES = [
   "Salt", "Black Pepper", "Olive Oil", "Vegetable Oil", "Garlic Powder",
@@ -94,7 +97,7 @@ const FREEZER_STAPLES = [
   "Frozen Peas", "Frozen Corn", "Frozen Berries", "Chicken Breast", "Ground Beef", "Fish Fillets", "Frozen Spinach", "Ice Cream"
 ];
 
-const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
 function DraggableRecipe({ recipe, day, onRecipeClick, onRemove }: { 
   recipe: Recipe, 
@@ -190,6 +193,21 @@ function DroppableDay({ day, recipes, onRecipeClick, onRemove }: {
 type InventoryCategory = 'pantry' | 'refrigerator' | 'freezer';
 
 export default function App() {
+  const [lang, setLang] = useState<Language>(() => {
+    const saved = localStorage.getItem('mealmaker_lang');
+    return (saved as Language) || 'en';
+  });
+
+  const t = (key: string) => {
+    const keys = key.split('.');
+    let result: any = translations[lang];
+    for (const k of keys) {
+      if (result[k] === undefined) return key;
+      result = result[k];
+    }
+    return result;
+  };
+
   const [ingredients, setIngredients] = useState<string[]>(() => {
     const saved = localStorage.getItem('mealmaker_ingredients');
     return saved ? JSON.parse(saved) : [];
@@ -297,6 +315,10 @@ export default function App() {
   }, [selectedRecipeIds]);
 
   useEffect(() => {
+    localStorage.setItem('mealmaker_lang', lang);
+  }, [lang]);
+
+  useEffect(() => {
     const handleClickOutside = () => setOpenPlannerId(null);
     if (openPlannerId) {
       window.addEventListener('click', handleClickOutside);
@@ -350,7 +372,7 @@ export default function App() {
     let destDay: string | null = null;
 
     // Check if overId is a day container or a recipe within a day
-    if (DAYS_OF_WEEK.includes(overId)) {
+    if ((DAYS_OF_WEEK as readonly string[]).includes(overId)) {
       destDay = overId;
     } else {
       for (const day of DAYS_OF_WEEK) {
@@ -499,7 +521,7 @@ export default function App() {
       .join('\n');
     
     if (list) {
-      navigator.clipboard.writeText(`Shopping List for ${selectedRecipes.length} recipes:\n\n${list}`);
+      navigator.clipboard.writeText(`${t('shoppingListFor')} ${selectedRecipes.length} ${t('recipesSelected')}:\n\n${list}`);
       setCopiedId('full-list');
       setTimeout(() => setCopiedId(null), 2000);
     }
@@ -540,7 +562,7 @@ export default function App() {
 
   const generateRecipes = async (append = false) => {
     if (ingredients.length === 0 && !hasInventory) {
-      setError("Please add at least one ingredient or item to your kitchen inventory.");
+      setError(t('errorIngredients'));
       return;
     }
 
@@ -556,7 +578,7 @@ export default function App() {
       const apiKey = process.env.GEMINI_API_KEY;
       
       if (!apiKey || apiKey === "") {
-        setError("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables.");
+        setError(t('errorGeminiKey'));
         setLoading(false);
         setLoadingMore(false);
         return;
@@ -568,6 +590,7 @@ export default function App() {
       const existingTitles = recipes.map(r => r.title).join(', ');
       const allInventory = [...inventory.pantry, ...inventory.refrigerator, ...inventory.freezer];
       const prompt = `Generate 3 creative and delicious recipes based on these parameters:
+      LANGUAGE: ${lang === 'fr' ? 'French' : 'English'}
       PRIORITY Kitchen Ingredients (Use these first): ${ingredients.join(', ')}
       Secondary Inventory (Pantry/Fridge/Freezer): ${allInventory.join(', ')}
       Meal Type: ${mealType === 'Any' ? 'Any suitable meal' : mealType}
@@ -578,7 +601,8 @@ export default function App() {
       For each recipe, identify which ingredients are "missing" (not in the priority or secondary lists).
       Ensure the cost per portion is an estimate: $ (budget), $$ (moderate), $$$ (premium).
       Ensure calories and protein are realistic estimates per serving.
-      Specify the number of servings the recipe makes.`;
+      Specify the number of servings the recipe makes.
+      IMPORTANT: All text content (title, description, instructions, ingredients) MUST be in ${lang === 'fr' ? 'French' : 'English'}.`;
 
       // Retry logic for 503 errors (High Demand)
       let attempts = 0;
@@ -678,9 +702,9 @@ export default function App() {
         errorString.includes('high_demand');
 
       if (is503) {
-        setError("The AI is currently experiencing high demand (503 Service Unavailable). We've attempted to reconnect 5 times automatically, but the service is still busy. Please wait about 30 seconds and try again.");
+        setError(t('error503'));
       } else {
-        setError("We encountered an unexpected error while generating recipes. Please check your connection and try again.");
+        setError(t('errorGeneric'));
       }
     } finally {
       setLoading(false);
@@ -706,39 +730,66 @@ export default function App() {
       {/* Header */}
       <header className="border-b border-[#E6E0D4] bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-[#5A5A40] rounded-full flex items-center justify-center text-white">
-              <ChefHat size={24} />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 bg-[#F5F5F0] p-1 rounded-xl mr-2">
+              <button 
+                onClick={() => setLang('en')}
+                className={cn(
+                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  lang === 'en' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                )}
+              >
+                EN
+              </button>
+              <button 
+                onClick={() => setLang('fr')}
+                className={cn(
+                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
+                  lang === 'fr' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                )}
+              >
+                FR
+              </button>
             </div>
-            <h1 className="text-xl font-serif font-bold tracking-tight">The Meal Maker</h1>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-[#5A5A40] rounded-full flex items-center justify-center text-white">
+                <ChefHat size={24} />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-xl font-serif font-bold tracking-tight leading-none">{t('appName')}</h1>
+                {t('appSubtitle') && (
+                  <span className="text-[10px] text-[#8E8E8E] font-medium uppercase tracking-wider mt-0.5">{t('appSubtitle')}</span>
+                )}
+              </div>
+            </div>
           </div>
           <div className="hidden sm:flex items-center gap-6 text-sm font-medium text-[#5A5A40]">
             <button 
               onClick={() => setActiveTab('recipes')}
               className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'recipes' && "text-[#5A5A40] font-bold underline underline-offset-8")}
             >
-              Recipes
+              {t('recipes')}
             </button>
             <button 
               onClick={() => setActiveTab('pantry')}
               className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'pantry' && "text-[#5A5A40] font-bold underline underline-offset-8")}
             >
               <Box size={18} />
-              Kitchen Inventory
+              {t('kitchenInventory')}
             </button>
             <button 
               onClick={() => setActiveTab('planner')}
               className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'planner' && "text-[#5A5A40] font-bold underline underline-offset-8")}
             >
               <Calendar size={18} />
-              Meal Planner
+              {t('mealPlanner')}
             </button>
             <button 
               onClick={() => setShowShoppingList(true)}
               className="relative hover:opacity-70 transition-opacity flex items-center gap-2 ml-4"
             >
               <ShoppingCart size={18} />
-              Shopping List
+              {t('shoppingList')}
               {selectedRecipeIds.length > 0 && (
                 <span className="absolute -top-2 -right-4 bg-[#5A5A40] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
                   {selectedRecipeIds.length}
@@ -787,7 +838,7 @@ export default function App() {
                   )}
                 >
                   <Utensils size={20} />
-                  Recipes
+                  {t('recipes')}
                 </button>
                 <button 
                   onClick={() => { setActiveTab('pantry'); setIsMobileMenuOpen(false); }}
@@ -797,7 +848,7 @@ export default function App() {
                   )}
                 >
                   <Box size={20} />
-                  Kitchen Inventory
+                  {t('kitchenInventory')}
                 </button>
                 <button 
                   onClick={() => { setActiveTab('planner'); setIsMobileMenuOpen(false); }}
@@ -807,7 +858,7 @@ export default function App() {
                   )}
                 >
                   <Calendar size={20} />
-                  Meal Planner
+                  {t('mealPlanner')}
                 </button>
               </div>
             </motion.div>
@@ -830,8 +881,8 @@ export default function App() {
                 <section className="bg-white p-6 rounded-[32px] shadow-sm border border-[#E6E0D4]">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-serif font-semibold flex items-center gap-2">
-                      <Utensils size={18} className="text-[#5A5A40]" />
-                      What's in your kitchen?
+                      <Search size={18} className="text-[#5A5A40]" />
+                      {t('refineSearch')}
                     </h2>
                     {ingredients.length > 0 && (
                       <button 
@@ -839,17 +890,17 @@ export default function App() {
                         className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors"
                       >
                         <Trash2 size={12} />
-                        Clear All
+                        {t('clearAll')}
                       </button>
                     )}
                   </div>
                   
-                  <form onSubmit={addIngredient} className="relative mb-4">
+                  <form onSubmit={addIngredient} className="relative mb-2">
                     <input 
                       type="text"
                       value={inputIngredient}
                       onChange={(e) => setInputIngredient(e.target.value)}
-                      placeholder="Add ingredient (e.g. Chicken, Spinach)"
+                      placeholder={t('searchPlaceholder')}
                       className="w-full pl-4 pr-12 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] transition-all text-sm"
                     />
                     <button 
@@ -859,6 +910,7 @@ export default function App() {
                       <Plus size={18} />
                     </button>
                   </form>
+                  <p className="text-[10px] text-[#8E8E8E] mb-4 ml-1">{t('refineSearchDesc')}</p>
 
                   <div className="flex flex-wrap gap-2 mb-6">
                     <AnimatePresence>
@@ -878,13 +930,13 @@ export default function App() {
                       ))}
                     </AnimatePresence>
                     {ingredients.length === 0 && (
-                      <p className="text-xs text-[#8E8E8E] italic">No ingredients added yet.</p>
+                      <p className="text-xs text-[#8E8E8E] italic">{lang === 'fr' ? 'Aucun ingrédient ajouté.' : 'No ingredients added yet.'}</p>
                     )}
                   </div>
 
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">Meal Type</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">{t('mealType')}</h3>
                       <div className="flex flex-wrap gap-2 mb-4">
                         {MEAL_TYPES.map(type => (
                           <button
@@ -897,14 +949,14 @@ export default function App() {
                                 : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
                             )}
                           >
-                            {type}
+                            {t(`mealTypes.${type}`)}
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">Dietary Restrictions</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">{t('dietaryOptionsTitle')}</h3>
                       <div className="flex flex-wrap gap-2 mb-4">
                         {DIETARY_OPTIONS.map(opt => (
                           <button
@@ -917,7 +969,7 @@ export default function App() {
                                 : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
                             )}
                           >
-                            {opt}
+                            {t(`dietaryOptions.${opt}`)}
                           </button>
                         ))}
                       </div>
@@ -928,7 +980,7 @@ export default function App() {
                           type="text"
                           value={inputRestriction}
                           onChange={(e) => setInputRestriction(e.target.value)}
-                          placeholder="Avoid specific ingredients..."
+                          placeholder={t('addRestriction')}
                           className="w-full pl-4 pr-12 py-2.5 bg-[#F5F5F0] rounded-xl border-none focus:ring-2 focus:ring-[#5A5A40] transition-all text-xs"
                         />
                         <button 
@@ -941,7 +993,7 @@ export default function App() {
 
                       {/* Display Custom Restrictions */}
                       <div className="flex flex-wrap gap-2">
-                        {restrictions.filter(r => !DIETARY_OPTIONS.includes(r)).map(res => (
+                        {restrictions.filter(r => !(DIETARY_OPTIONS as readonly string[]).includes(r)).map(res => (
                           <span 
                             key={res}
                             className="px-2.5 py-1 bg-orange-50 text-orange-700 border border-orange-100 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5"
@@ -956,14 +1008,14 @@ export default function App() {
                     </div>
 
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">Cuisine Style</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">{t('cuisine')}</h3>
                       <select 
                         value={cuisine}
                         onChange={(e) => setCuisine(e.target.value)}
                         className="w-full px-4 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] text-sm appearance-none cursor-pointer"
                       >
                         {CUISINES.map(c => (
-                          <option key={c} value={c}>{c}</option>
+                          <option key={c} value={c}>{t(`cuisines.${c}`)}</option>
                         ))}
                       </select>
                     </div>
@@ -977,12 +1029,12 @@ export default function App() {
                     {loading ? (
                       <>
                         <RefreshCw className="animate-spin" size={20} />
-                        Crafting Recipes...
+                        {t('generating')}
                       </>
                     ) : (
                       <>
                         <ChefHat size={20} />
-                        Generate Ideas
+                        {t('generateRecipes')}
                       </>
                     )}
                   </button>
@@ -997,7 +1049,7 @@ export default function App() {
                         onClick={() => generateRecipes(false)}
                         className="text-[10px] font-bold uppercase tracking-wider bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg self-start hover:bg-red-50 transition-colors"
                       >
-                        Try Again
+                        {lang === 'fr' ? 'Réessayer' : 'Try Again'}
                       </button>
                     </div>
                   )}
@@ -1014,8 +1066,8 @@ export default function App() {
                       className="space-y-8"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-2xl font-serif font-bold">Recommended for You</h2>
-                        <span className="text-sm text-[#8E8E8E]">{recipes.length} recipes found</span>
+                        <h2 className="text-2xl font-serif font-bold">{lang === 'fr' ? 'Recommandé pour vous' : 'Recommended for You'}</h2>
+                        <span className="text-sm text-[#8E8E8E]">{recipes.length} {lang === 'fr' ? 'recettes trouvées' : 'recipes found'}</span>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
@@ -1056,12 +1108,12 @@ export default function App() {
                                       {selectedRecipeIds.includes(recipe.id) ? (
                                         <>
                                           <Check size={14} />
-                                          Added to List
+                                          {lang === 'fr' ? 'Ajouté' : 'Added to List'}
                                         </>
                                       ) : (
                                         <>
                                           <Plus size={14} />
-                                          Add to Shopping List
+                                          {lang === 'fr' ? 'Ajouter à la liste' : 'Add to Shopping List'}
                                         </>
                                       )}
                                     </button>
@@ -1075,7 +1127,7 @@ export default function App() {
                                         className="px-4 py-2 bg-[#F5F5F0] text-[#5A5A40] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#E6E0D4] transition-all flex items-center gap-2"
                                       >
                                         <Calendar size={14} />
-                                        Add to Planner
+                                        {t('saveToPlanner')}
                                       </button>
                                       {/* Dropdown with bridge to prevent disappearing */}
                                       <div className={cn(
@@ -1092,7 +1144,7 @@ export default function App() {
                                               }}
                                               className="w-full text-left px-3 py-2 text-xs hover:bg-[#F5F5F0] rounded-lg transition-colors"
                                             >
-                                              {day}
+                                              {t(`days.${day}`)}
                                             </button>
                                           ))}
                                         </div>
@@ -1108,7 +1160,7 @@ export default function App() {
                                   </div>
                                   <div className="flex items-center gap-1.5 text-[#5A5A40]">
                                     <Users size={16} />
-                                    <span className="text-sm font-semibold">{recipe.servings} servings</span>
+                                    <span className="text-sm font-semibold">{recipe.servings} {t('servings')}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 text-[#5A5A40]">
                                     <DollarSign size={16} />
@@ -1116,11 +1168,11 @@ export default function App() {
                                   </div>
                                   <div className="flex items-center gap-1.5 text-[#5A5A40]">
                                     <Flame size={16} />
-                                    <span className="text-sm font-semibold">{recipe.caloriesPerPortion} kcal</span>
+                                    <span className="text-sm font-semibold">{recipe.caloriesPerPortion} {t('calories')}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 text-[#5A5A40]">
                                     <Dumbbell size={16} />
-                                    <span className="text-sm font-semibold">{recipe.proteinPerPortion} protein</span>
+                                    <span className="text-sm font-semibold">{recipe.proteinPerPortion} {t('protein')}</span>
                                   </div>
                                 </div>
                               </div>
@@ -1128,7 +1180,7 @@ export default function App() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[#F5F5F0]">
                                 <div>
                                   <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">Ingredients</h4>
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
                                     <button 
                                       onClick={() => copyMissingIngredients(recipe)}
                                       className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] hover:opacity-70 transition-opacity"
@@ -1136,12 +1188,12 @@ export default function App() {
                                       {copiedId === recipe.id ? (
                                         <>
                                           <Check size={12} className="text-green-600" />
-                                          Copied Missing!
+                                          {t('copied')}
                                         </>
                                       ) : (
                                         <>
                                           <Copy size={12} />
-                                          Copy Missing
+                                          {t('copyMissing')}
                                         </>
                                       )}
                                     </button>
@@ -1157,7 +1209,7 @@ export default function App() {
                                           ing.isMissing ? "text-[#8E8E8E]" : "text-[#2D2D2D]"
                                         )}>
                                           <span className="font-semibold">{ing.amount}</span> {ing.name}
-                                          {ing.isMissing && <span className="ml-2 text-[10px] italic">(Missing)</span>}
+                                          {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
                                         </span>
                                       </li>
                                     ))}
@@ -1165,7 +1217,7 @@ export default function App() {
                                 </div>
 
                                 <div>
-                                  <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Instructions</h4>
+                                  <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h4>
                                   <ol className="space-y-4">
                                     {recipe.instructions.map((step, i) => (
                                       <li key={i} className="flex gap-4 text-sm">
@@ -1191,12 +1243,12 @@ export default function App() {
                           {loadingMore ? (
                             <>
                               <RefreshCw className="animate-spin" size={18} />
-                              Finding more ideas...
+                              {t('generating')}
                             </>
                           ) : (
                             <>
                               <Plus size={18} />
-                              Show me more recipes
+                              {t('generateMore')}
                             </>
                           )}
                         </button>
@@ -1211,9 +1263,9 @@ export default function App() {
                       <div className="w-20 h-20 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] mb-6">
                         <Search size={32} />
                       </div>
-                      <h2 className="text-2xl font-serif font-bold mb-3">Ready to cook?</h2>
+                      <h2 className="text-2xl font-serif font-bold mb-3">{t('readyToCook')}</h2>
                       <p className="text-[#8E8E8E] max-w-md mx-auto leading-relaxed">
-                        Add your ingredients and preferences <span className="hidden lg:inline">on the left</span><span className="lg:hidden">above</span>, and we'll craft personalized recipe ideas for you.
+                        {t('noRecipes')}
                       </p>
                     </motion.div>
                   )}
@@ -1230,31 +1282,31 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="max-w-4xl mx-auto"
             >
-              <div className="bg-white p-8 rounded-[48px] border border-[#E6E0D4] shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+              <div className="bg-white p-5 sm:p-8 rounded-[32px] sm:rounded-[48px] border border-[#E6E0D4] shadow-sm">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
                       <Box size={24} />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-serif font-bold">Kitchen Inventory</h2>
-                      <p className="text-[#8E8E8E]">Manage your stock across pantry, fridge, and freezer.</p>
+                      <h2 className="text-2xl font-serif font-bold">{t('kitchenInventory')}</h2>
+                      <p className="text-[#8E8E8E] text-sm">{lang === 'fr' ? 'Gérez votre stock dans le garde-manger, le frigo et le congélateur.' : 'Manage your stock across pantry, fridge, and freezer.'}</p>
                     </div>
                   </div>
 
-                  <div className="flex bg-[#F5F5F0] p-1 rounded-2xl overflow-x-auto no-scrollbar">
+                  <div className="flex bg-[#F5F5F0] p-1 rounded-full w-full lg:w-auto lg:min-w-[400px]">
                     {(['pantry', 'refrigerator', 'freezer'] as InventoryCategory[]).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setActiveInventoryTab(tab)}
                         className={cn(
-                          "flex-1 px-3 sm:px-6 py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
+                          "flex-1 px-2 sm:px-4 py-2 rounded-full text-[9px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap text-center",
                           activeInventoryTab === tab 
                             ? "bg-white text-[#5A5A40] shadow-sm" 
                             : "text-[#8E8E8E] hover:text-[#5A5A40]"
                         )}
                       >
-                        {tab}
+                        {t(tab)}
                       </button>
                     ))}
                   </div>
@@ -1274,7 +1326,7 @@ export default function App() {
                           : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
                       )}
                     >
-                      <span className="truncate pr-1">{staple}</span>
+                      <span className="truncate pr-1">{t(`staples.${staple}`)}</span>
                       {inventory[activeInventoryTab].includes(staple) ? (
                         <Check size={12} className="shrink-0" />
                       ) : (
@@ -1320,29 +1372,31 @@ export default function App() {
 
                 <div className="mb-12">
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">
-                    Add to {activeInventoryTab}
+                    {t('addTo')} {t(activeInventoryTab)}
                   </h3>
-                  <form onSubmit={addCustomPantryStaple} className="flex gap-3 max-w-md">
+                  <form onSubmit={addCustomPantryStaple} className="flex flex-col gap-3 max-w-md">
                     <input 
                       type="text"
                       value={inputPantryStaple}
                       onChange={(e) => setInputPantryStaple(e.target.value)}
-                      placeholder={`e.g. ${activeInventoryTab === 'freezer' ? 'Frozen Peas' : activeInventoryTab === 'refrigerator' ? 'Greek Yogurt' : 'Honey'}`}
-                      className="flex-1 px-4 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] text-sm"
+                      placeholder={`e.g. ${activeInventoryTab === 'freezer' ? (lang === 'fr' ? 'Petits pois' : 'Frozen Peas') : activeInventoryTab === 'refrigerator' ? (lang === 'fr' ? 'Yaourt grec' : 'Greek Yogurt') : (lang === 'fr' ? 'Miel' : 'Honey')}`}
+                      className="w-full px-4 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] text-sm"
                     />
                     <button 
                       type="submit"
-                      className="px-6 py-3 bg-[#5A5A40] text-white rounded-2xl font-semibold hover:bg-[#4A4A35] transition-colors"
+                      className="w-full sm:w-auto px-6 py-3 bg-[#5A5A40] text-white rounded-2xl font-semibold hover:bg-[#4A4A35] transition-colors"
                     >
-                      Add
+                      {t('add')}
                     </button>
                   </form>
                 </div>
 
                 <div className="mt-12 p-6 bg-[#F5F5F0] rounded-3xl">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Inventory Management</h3>
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{lang === 'fr' ? 'Gestion de l\'inventaire' : 'Inventory Management'}</h3>
                   <p className="text-sm text-[#5A5A40] leading-relaxed">
-                    Keep track of what's in your {activeInventoryTab}. The Meal Maker will use this information to suggest recipes that utilize your existing stock, saving you money and reducing food waste.
+                    {lang === 'fr' 
+                      ? `Gardez une trace de ce qu'il y a dans votre ${t(activeInventoryTab)}. Le Chef Virtuel utilisera ces informations pour suggérer des recettes utilisant votre stock existant, vous faisant économiser de l'argent et réduisant le gaspillage alimentaire.`
+                      : `Keep track of what's in your ${activeInventoryTab}. The Meal Maker will use this information to suggest recipes that utilize your existing stock, saving you money and reducing food waste.`}
                   </p>
                 </div>
               </div>
@@ -1362,13 +1416,13 @@ export default function App() {
                   <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
                     <Calendar size={24} />
                   </div>
-                  <h2 className="text-2xl font-serif font-bold">Weekly Meal Planner</h2>
+                  <h2 className="text-2xl font-serif font-bold">{t('weeklyPlanner')}</h2>
                 </div>
                 <button 
                   onClick={() => setMealPlan({})}
                   className="text-xs font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
                 >
-                  Clear All
+                  {t('clearAll')}
                 </button>
               </div>
 
@@ -1382,7 +1436,7 @@ export default function App() {
                   {DAYS_OF_WEEK.map(day => (
                     <DroppableDay 
                       key={day} 
-                      day={day} 
+                      day={t(`days.${day}`)} 
                       recipes={mealPlan[day] || []} 
                       onRecipeClick={setViewingPlannerRecipe}
                       onRemove={removeFromMealPlan}
@@ -1447,11 +1501,11 @@ export default function App() {
                   <div className="lg:col-span-1 space-y-8">
                     <div className="bg-[#F5F5F0] p-6 rounded-3xl space-y-4">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-[#8E8E8E] font-medium">Time</span>
+                        <span className="text-[#8E8E8E] font-medium">{lang === 'fr' ? 'Temps' : 'Time'}</span>
                         <span className="font-bold">{viewingPlannerRecipe.totalTime}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-[#8E8E8E] font-medium">Servings</span>
+                        <span className="text-[#8E8E8E] font-medium">{lang === 'fr' ? 'Portions' : 'Servings'}</span>
                         <span className="font-bold">{viewingPlannerRecipe.servings}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
@@ -1459,13 +1513,13 @@ export default function App() {
                         <span className="font-bold">{viewingPlannerRecipe.caloriesPerPortion} kcal</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-[#8E8E8E] font-medium">Protein</span>
+                        <span className="text-[#8E8E8E] font-medium">{lang === 'fr' ? 'Protéines' : 'Protein'}</span>
                         <span className="font-bold">{viewingPlannerRecipe.proteinPerPortion}</span>
                       </div>
                     </div>
 
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Ingredients</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('ingredients')}</h3>
                       <ul className="space-y-3">
                         {viewingPlannerRecipe.ingredients.map((ing, i) => (
                           <li key={i} className="flex items-start gap-3 text-sm">
@@ -1479,7 +1533,7 @@ export default function App() {
 
                   <div className="lg:col-span-2 space-y-8">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Instructions</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h3>
                       <ol className="space-y-6">
                         {viewingPlannerRecipe.instructions.map((step, i) => (
                           <li key={i} className="flex gap-6">
@@ -1521,8 +1575,8 @@ export default function App() {
                     <ShoppingCart size={20} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-serif font-bold">Shopping List</h2>
-                    <p className="text-xs text-[#8E8E8E]">{selectedRecipeIds.length} recipes selected</p>
+                    <h2 className="text-lg font-serif font-bold">{t('shoppingListTitle')}</h2>
+                    <p className="text-xs text-[#8E8E8E]">{selectedRecipeIds.length} {t('recipesSelected')}</p>
                   </div>
                 </div>
                 <button 
@@ -1537,7 +1591,7 @@ export default function App() {
                 {selectedRecipes.length > 0 ? (
                   <>
                     <section>
-                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Recipes in Plan</h3>
+                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('recipesInPlan')}</h3>
                       <div className="space-y-3">
                         {selectedRecipes.map(recipe => (
                           <div key={recipe.id} className="flex items-center justify-between p-3 bg-[#F5F5F0] rounded-2xl group">
@@ -1555,7 +1609,7 @@ export default function App() {
 
                     <section>
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E]">Missing Ingredients</h3>
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E]">{t('missingIngredients')}</h3>
                         <button 
                           onClick={copyFullShoppingList}
                           className="text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] flex items-center gap-1.5 hover:opacity-70"
@@ -1563,12 +1617,12 @@ export default function App() {
                           {copiedId === 'full-list' ? (
                             <>
                               <Check size={12} className="text-green-600" />
-                              Copied!
+                              {t('copied')}
                             </>
                           ) : (
                             <>
                               <Copy size={12} />
-                              Copy All
+                              {t('copyFullList')}
                             </>
                           )}
                         </button>
@@ -1586,7 +1640,7 @@ export default function App() {
                           ))
                         ) : (
                           <div className="p-8 text-center text-sm text-[#8E8E8E] italic">
-                            No missing ingredients! You have everything you need.
+                            {lang === 'fr' ? 'Aucun ingrédient manquant ! Vous avez tout ce qu\'il faut.' : 'No missing ingredients! You have everything you need.'}
                           </div>
                         )}
                       </div>
@@ -1598,9 +1652,9 @@ export default function App() {
                       <Utensils size={24} />
                     </div>
                     <div>
-                      <h3 className="font-serif font-bold">Your list is empty</h3>
+                      <h3 className="font-serif font-bold">{lang === 'fr' ? 'Votre liste est vide' : 'Your list is empty'}</h3>
                       <p className="text-sm text-[#8E8E8E] max-w-[200px] mx-auto mt-2">
-                        Add recipes from your search results to generate a shopping list.
+                        {lang === 'fr' ? 'Ajoutez des recettes pour générer une liste de courses.' : 'Add recipes from your search results to generate a shopping list.'}
                       </p>
                     </div>
                   </div>
@@ -1608,13 +1662,19 @@ export default function App() {
               </div>
 
               {selectedRecipes.length > 0 && (
-                <div className="p-6 border-t border-[#E6E0D4] bg-[#FDFCFB]">
+                <div className="p-6 border-t border-[#E6E0D4] bg-[#FDFCFB] flex flex-col gap-3">
                   <button 
                     onClick={copyFullShoppingList}
                     className="w-full py-4 bg-[#5A5A40] text-white rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#4A4A35] transition-colors shadow-lg shadow-[#5A5A40]/20"
                   >
                     <Copy size={18} />
-                    Copy Shopping List
+                    {t('copyFullList')}
+                  </button>
+                  <button 
+                    onClick={() => setShowShoppingList(false)}
+                    className="w-full py-3 text-[#5A5A40] font-medium hover:bg-[#F5F5F0] rounded-xl transition-colors"
+                  >
+                    {t('close')}
                   </button>
                 </div>
               )}
@@ -1626,11 +1686,11 @@ export default function App() {
       {/* Footer */}
       <footer className="mt-20 border-t border-[#E6E0D4] py-12 bg-white">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-sm text-[#8E8E8E] mb-4">© 2026 The Meal Maker. Powered by Gemini AI.</p>
+          <p className="text-sm text-[#8E8E8E] mb-4">© 2026 {t('appName')}. {lang === 'fr' ? 'Propulsé par Gemini AI.' : 'Powered by Gemini AI.'}</p>
           <div className="flex justify-center gap-6 text-[#5A5A40] font-medium text-xs uppercase tracking-widest">
-            <a href="#" className="hover:opacity-70 transition-opacity">Privacy</a>
-            <a href="#" className="hover:opacity-70 transition-opacity">Terms</a>
-            <a href="#" className="hover:opacity-70 transition-opacity">Support</a>
+            <a href="#" className="hover:opacity-70 transition-opacity">{lang === 'fr' ? 'Confidentialité' : 'Privacy'}</a>
+            <a href="#" className="hover:opacity-70 transition-opacity">{lang === 'fr' ? 'Conditions' : 'Terms'}</a>
+            <a href="#" className="hover:opacity-70 transition-opacity">{lang === 'fr' ? 'Support' : 'Support'}</a>
           </div>
         </div>
       </footer>
