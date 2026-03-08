@@ -1,0 +1,5 @@
+{
+  "name": "The Meal Maker",
+  "description": "Generate personalized recipes based on available ingredients, dietary restrictions, and cuisine preferences with cost and calorie estimates.",
+  "requestFramePermissions": []
+}
