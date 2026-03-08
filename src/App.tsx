@@ -83,7 +83,15 @@ const MEAL_TYPES = [
 const PANTRY_STAPLES = [
   "Salt", "Black Pepper", "Olive Oil", "Vegetable Oil", "Garlic Powder",
   "Onion Powder", "Dried Oregano", "Dried Basil", "Flour", "Sugar",
-  "Rice", "Pasta", "Soy Sauce", "Vinegar", "Butter", "Eggs", "Milk"
+  "Rice", "Pasta", "Soy Sauce", "Vinegar", "Honey", "Canned Tomatoes", "Beans"
+];
+
+const REFRIGERATOR_STAPLES = [
+  "Milk", "Eggs", "Butter", "Cheese", "Yogurt", "Carrots", "Onions", "Garlic", "Ginger", "Lemons", "Limes", "Mayonnaise", "Mustard", "Ketchup"
+];
+
+const FREEZER_STAPLES = [
+  "Frozen Peas", "Frozen Corn", "Frozen Berries", "Chicken Breast", "Ground Beef", "Fish Fillets", "Frozen Spinach", "Ice Cream"
 ];
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -179,29 +187,82 @@ function DroppableDay({ day, recipes, onRecipeClick, onRemove }: {
   );
 }
 
+type InventoryCategory = 'pantry' | 'refrigerator' | 'freezer';
+
 export default function App() {
-  const [ingredients, setIngredients] = useState<string[]>([]);
+  const [ingredients, setIngredients] = useState<string[]>(() => {
+    const saved = localStorage.getItem('mealmaker_ingredients');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [inputIngredient, setInputIngredient] = useState('');
-  const [restrictions, setRestrictions] = useState<string[]>([]);
+  const [restrictions, setRestrictions] = useState<string[]>(() => {
+    const saved = localStorage.getItem('mealmaker_restrictions');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [inputRestriction, setInputRestriction] = useState('');
   const [cuisine, setCuisine] = useState('General');
   const [mealType, setMealType] = useState('Any');
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>(() => {
+    const saved = localStorage.getItem('mealmaker_recipes');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedRecipeIds, setSelectedRecipeIds] = useState<string[]>([]);
+  const [selectedRecipeIds, setSelectedRecipeIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('mealmaker_selected_ids');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [activeTab, setActiveTab] = useState<'recipes' | 'pantry' | 'planner'>('recipes');
-  const [pantryStaples, setPantryStaples] = useState<string[]>([]);
+  const [inventory, setInventory] = useState<{ [key in InventoryCategory]: string[] }>(() => {
+    const saved = localStorage.getItem('mealmaker_inventory');
+    if (saved) return JSON.parse(saved);
+    
+    // Migration from old pantryStaples
+    const oldPantry = localStorage.getItem('mealmaker_pantry');
+    return {
+      pantry: oldPantry ? JSON.parse(oldPantry) : [],
+      refrigerator: [],
+      freezer: []
+    };
+  });
+  const [activeInventoryTab, setActiveInventoryTab] = useState<InventoryCategory>('pantry');
   const [inputPantryStaple, setInputPantryStaple] = useState('');
-  const [mealPlan, setMealPlan] = useState<{ [key: string]: Recipe[] }>({});
+  const [mealPlan, setMealPlan] = useState<{ [key: string]: Recipe[] }>(() => {
+    const saved = localStorage.getItem('mealmaker_mealplan');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [viewingPlannerRecipe, setViewingPlannerRecipe] = useState<Recipe | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openPlannerId, setOpenPlannerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_ingredients', JSON.stringify(ingredients));
+  }, [ingredients]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_restrictions', JSON.stringify(restrictions));
+  }, [restrictions]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_recipes', JSON.stringify(recipes));
+  }, [recipes]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_inventory', JSON.stringify(inventory));
+  }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_mealplan', JSON.stringify(mealPlan));
+  }, [mealPlan]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_selected_ids', JSON.stringify(selectedRecipeIds));
+  }, [selectedRecipeIds]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenPlannerId(null);
@@ -306,16 +367,23 @@ export default function App() {
   };
 
   const togglePantryStaple = (staple: string) => {
-    setPantryStaples(prev => 
-      prev.includes(staple) ? prev.filter(s => s !== staple) : [...prev, staple]
-    );
+    setInventory(prev => {
+      const currentList = prev[activeInventoryTab];
+      const newList = currentList.includes(staple) 
+        ? currentList.filter(s => s !== staple) 
+        : [...currentList, staple];
+      return { ...prev, [activeInventoryTab]: newList };
+    });
   };
 
   const addCustomPantryStaple = (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = inputPantryStaple.trim();
-    if (trimmed && !pantryStaples.includes(trimmed)) {
-      setPantryStaples([...pantryStaples, trimmed]);
+    if (trimmed && !inventory[activeInventoryTab].includes(trimmed)) {
+      setInventory(prev => ({
+        ...prev,
+        [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
+      }));
       setInputPantryStaple('');
     }
   };
@@ -420,9 +488,6 @@ export default function App() {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       
-      // FOR TESTING ONLY: You can hardcode your key here if environment variables are failing
-      // const apiKey = "YOUR_ACTUAL_API_KEY_HERE"; 
-
       if (!apiKey || apiKey === "") {
         setError("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables.");
         setLoading(false);
@@ -434,75 +499,119 @@ export default function App() {
       const model = "gemini-3-flash-preview";
 
       const existingTitles = recipes.map(r => r.title).join(', ');
-      const allIngredients = [...ingredients, ...pantryStaples];
+      const allInventory = [...inventory.pantry, ...inventory.refrigerator, ...inventory.freezer];
       const prompt = `Generate 3 creative and delicious recipes based on these parameters:
-      Available Ingredients: ${allIngredients.join(', ')}
+      PRIORITY Kitchen Ingredients (Use these first): ${ingredients.join(', ')}
+      Secondary Inventory (Pantry/Fridge/Freezer): ${allInventory.join(', ')}
       Meal Type: ${mealType === 'Any' ? 'Any suitable meal' : mealType}
       Dietary Restrictions: ${restrictions.join(', ') || 'None'}
       Cuisine Preference: ${cuisine}
       ${append ? `Avoid generating these recipes which I already have: ${existingTitles}` : ''}
 
-      For each recipe, identify which ingredients are "missing" (not in the available list).
+      For each recipe, identify which ingredients are "missing" (not in the priority or secondary lists).
       Ensure the cost per portion is an estimate: $ (budget), $$ (moderate), $$$ (premium).
       Ensure calories and protein are realistic estimates per serving.
       Specify the number of servings the recipe makes.`;
 
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                title: { type: Type.STRING },
-                description: { type: Type.STRING },
-                prepTime: { type: Type.STRING },
-                cookTime: { type: Type.STRING },
-                totalTime: { type: Type.STRING },
-                cuisine: { type: Type.STRING },
-                costPerPortion: { type: Type.STRING, description: "$, $$, or $$$" },
-                caloriesPerPortion: { type: Type.INTEGER },
-                proteinPerPortion: { type: Type.STRING, description: "e.g. '25g'" },
-                servings: { type: Type.INTEGER },
-                ingredients: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      amount: { type: Type.STRING },
-                      isMissing: { type: Type.BOOLEAN }
-                    }
-                  }
-                },
-                instructions: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                },
-                dietaryTags: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                }
-              },
-              required: ["id", "title", "description", "totalTime", "costPerPortion", "caloriesPerPortion", "proteinPerPortion", "servings", "ingredients", "instructions"]
-            }
-          }
-        }
-      });
+      // Retry logic for 503 errors
+      let attempts = 0;
+      const maxAttempts = 3;
+      let lastError: any = null;
 
-      const data = JSON.parse(response.text || "[]");
-      if (append) {
-        setRecipes(prev => [...prev, ...data]);
-      } else {
-        setRecipes(data);
+      while (attempts < maxAttempts) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    prepTime: { type: Type.STRING },
+                    cookTime: { type: Type.STRING },
+                    totalTime: { type: Type.STRING },
+                    cuisine: { type: Type.STRING },
+                    costPerPortion: { type: Type.STRING, description: "$, $$, or $$$" },
+                    caloriesPerPortion: { type: Type.INTEGER },
+                    proteinPerPortion: { type: Type.STRING, description: "e.g. '25g'" },
+                    servings: { type: Type.INTEGER },
+                    ingredients: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          name: { type: Type.STRING },
+                          amount: { type: Type.STRING },
+                          isMissing: { type: Type.BOOLEAN }
+                        }
+                      }
+                    },
+                    instructions: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    },
+                    dietaryTags: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    }
+                  },
+                  required: ["id", "title", "description", "totalTime", "costPerPortion", "caloriesPerPortion", "proteinPerPortion", "servings", "ingredients", "instructions"]
+                }
+              }
+            }
+          });
+
+          const data = JSON.parse(response.text || "[]");
+          if (append) {
+            setRecipes(prev => [...prev, ...data]);
+          } else {
+            setRecipes(data);
+          }
+          return; // Success, exit the function
+        } catch (err: any) {
+          lastError = err;
+          const errorString = JSON.stringify(err).toLowerCase();
+          const is503 = 
+            err?.status === 503 || 
+            err?.code === 503 || 
+            err?.error?.code === 503 ||
+            err?.message?.includes('503') || 
+            err?.message?.includes('high demand') ||
+            errorString.includes('503') ||
+            errorString.includes('unavailable');
+          
+          if (is503 && attempts < maxAttempts - 1) {
+            attempts++;
+            // Exponential backoff: 1.5s, 3s, 6s
+            await new Promise(resolve => setTimeout(resolve, 1500 * Math.pow(2, attempts - 1)));
+            continue;
+          }
+          throw err; 
+        }
       }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to generate recipes. Please try again.");
+    } catch (err: any) {
+      console.error('Recipe Generation Error:', err);
+      const errorString = JSON.stringify(err).toLowerCase();
+      const is503 = 
+        err?.status === 503 || 
+        err?.code === 503 || 
+        err?.error?.code === 503 ||
+        err?.message?.includes('503') || 
+        err?.message?.includes('high demand') ||
+        errorString.includes('503') ||
+        errorString.includes('unavailable');
+
+      if (is503) {
+        setError("The AI is currently very busy (High Demand). We tried a few times, but it's still busy. Please wait 10-20 seconds and try again.");
+      } else {
+        setError("We couldn't generate recipes right now. Please check your connection or try again later.");
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -545,7 +654,7 @@ export default function App() {
               className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'pantry' && "text-[#5A5A40] font-bold underline underline-offset-8")}
             >
               <Box size={18} />
-              My Pantry
+              Kitchen Inventory
             </button>
             <button 
               onClick={() => setActiveTab('planner')}
@@ -618,7 +727,7 @@ export default function App() {
                   )}
                 >
                   <Box size={20} />
-                  My Pantry
+                  Kitchen Inventory
                 </button>
                 <button 
                   onClick={() => { setActiveTab('planner'); setIsMobileMenuOpen(false); }}
@@ -809,9 +918,17 @@ export default function App() {
                   </button>
 
                   {error && (
-                    <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs flex items-center gap-2">
-                      <AlertCircle size={14} />
-                      {error}
+                    <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-2xl text-xs flex flex-col gap-3 border border-red-100">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={14} className="shrink-0" />
+                        <span className="font-medium">{error}</span>
+                      </div>
+                      <button 
+                        onClick={() => generateRecipes(false)}
+                        className="text-[10px] font-bold uppercase tracking-wider bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg self-start hover:bg-red-50 transition-colors"
+                      >
+                        Try Again
+                      </button>
                     </div>
                   )}
                 </section>
@@ -1044,30 +1161,87 @@ export default function App() {
               className="max-w-4xl mx-auto"
             >
               <div className="bg-white p-8 rounded-[48px] border border-[#E6E0D4] shadow-sm">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
-                    <Box size={24} />
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
+                      <Box size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-serif font-bold">Kitchen Inventory</h2>
+                      <p className="text-[#8E8E8E]">Manage your stock across pantry, fridge, and freezer.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-serif font-bold">My Pantry Staples</h2>
-                    <p className="text-[#8E8E8E]">Select the basic ingredients you always have at home.</p>
+
+                  <div className="flex bg-[#F5F5F0] p-1 rounded-2xl overflow-x-auto no-scrollbar">
+                    {(['pantry', 'refrigerator', 'freezer'] as InventoryCategory[]).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveInventoryTab(tab)}
+                        className={cn(
+                          "flex-1 px-3 sm:px-6 py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
+                          activeInventoryTab === tab 
+                            ? "bg-white text-[#5A5A40] shadow-sm" 
+                            : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                        )}
+                      >
+                        {tab}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-12">
-                  {PANTRY_STAPLES.map(staple => (
+                  {activeInventoryTab === 'pantry' && PANTRY_STAPLES.map(staple => (
                     <button
                       key={staple}
                       onClick={() => togglePantryStaple(staple)}
                       className={cn(
                         "p-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-between group",
-                        pantryStaples.includes(staple)
+                        inventory.pantry.includes(staple)
                           ? "bg-[#5A5A40] text-white border-[#5A5A40]"
                           : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
                       )}
                     >
                       {staple}
-                      {pantryStaples.includes(staple) ? (
+                      {inventory.pantry.includes(staple) ? (
+                        <Check size={16} />
+                      ) : (
+                        <Plus size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  ))}
+                  {activeInventoryTab === 'refrigerator' && REFRIGERATOR_STAPLES.map(staple => (
+                    <button
+                      key={staple}
+                      onClick={() => togglePantryStaple(staple)}
+                      className={cn(
+                        "p-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-between group",
+                        inventory.refrigerator.includes(staple)
+                          ? "bg-[#5A5A40] text-white border-[#5A5A40]"
+                          : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
+                      )}
+                    >
+                      {staple}
+                      {inventory.refrigerator.includes(staple) ? (
+                        <Check size={16} />
+                      ) : (
+                        <Plus size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  ))}
+                  {activeInventoryTab === 'freezer' && FREEZER_STAPLES.map(staple => (
+                    <button
+                      key={staple}
+                      onClick={() => togglePantryStaple(staple)}
+                      className={cn(
+                        "p-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-between group",
+                        inventory.freezer.includes(staple)
+                          ? "bg-[#5A5A40] text-white border-[#5A5A40]"
+                          : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
+                      )}
+                    >
+                      {staple}
+                      {inventory.freezer.includes(staple) ? (
                         <Check size={16} />
                       ) : (
                         <Plus size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1077,13 +1251,15 @@ export default function App() {
                 </div>
 
                 <div className="mb-12">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Add Custom Staples</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">
+                    Add to {activeInventoryTab}
+                  </h3>
                   <form onSubmit={addCustomPantryStaple} className="flex gap-3 max-w-md">
                     <input 
                       type="text"
                       value={inputPantryStaple}
                       onChange={(e) => setInputPantryStaple(e.target.value)}
-                      placeholder="e.g. Honey, Coconut Milk, Cumin"
+                      placeholder={`e.g. ${activeInventoryTab === 'freezer' ? 'Frozen Peas' : activeInventoryTab === 'refrigerator' ? 'Greek Yogurt' : 'Honey'}`}
                       className="flex-1 px-4 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] text-sm"
                     />
                     <button 
@@ -1095,25 +1271,31 @@ export default function App() {
                   </form>
 
                   <div className="flex flex-wrap gap-2 mt-4">
-                    {pantryStaples.filter(s => !PANTRY_STAPLES.includes(s)).map(staple => (
-                      <span 
-                        key={staple}
-                        className="px-3 py-1.5 bg-[#E6E0D4] text-[#5A5A40] rounded-full text-xs font-medium flex items-center gap-1.5"
-                      >
-                        {staple}
-                        <button onClick={() => togglePantryStaple(staple)} className="hover:text-red-500 transition-colors">
-                          <X size={14} />
-                        </button>
-                      </span>
+                    {inventory[activeInventoryTab]
+                      .filter(s => {
+                        if (activeInventoryTab === 'pantry') return !PANTRY_STAPLES.includes(s);
+                        if (activeInventoryTab === 'refrigerator') return !REFRIGERATOR_STAPLES.includes(s);
+                        if (activeInventoryTab === 'freezer') return !FREEZER_STAPLES.includes(s);
+                        return true;
+                      })
+                      .map(staple => (
+                        <span 
+                          key={staple}
+                          className="px-3 py-1.5 bg-[#E6E0D4] text-[#5A5A40] rounded-full text-xs font-medium flex items-center gap-1.5"
+                        >
+                          {staple}
+                          <button onClick={() => togglePantryStaple(staple)} className="hover:text-red-500 transition-colors">
+                            <X size={14} />
+                          </button>
+                        </span>
                     ))}
                   </div>
                 </div>
 
                 <div className="mt-12 p-6 bg-[#F5F5F0] rounded-3xl">
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Why add staples?</h3>
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">Inventory Management</h3>
                   <p className="text-sm text-[#5A5A40] leading-relaxed">
-                    Staples like salt, oil, and eggs are common in many recipes. By marking them as available, 
-                    The Meal Maker will prioritize recipes that use these items and won't add them to your shopping list.
+                    Keep track of what's in your {activeInventoryTab}. The Meal Maker will use this information to suggest recipes that utilize your existing stock, saving you money and reducing food waste.
                   </p>
                 </div>
               </div>
