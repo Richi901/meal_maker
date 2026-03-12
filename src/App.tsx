@@ -23,7 +23,8 @@ import {
   Users,
   Dumbbell,
   GripVertical,
-  Menu
+  Menu,
+  Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -101,11 +102,13 @@ const FREEZER_STAPLES = [
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
-function DraggableMealItem({ item, day, onRecipeClick, onRemove }: { 
+function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onToggleFavorite }: { 
   item: MealItem, 
   day: string, 
-  onRecipeClick: (r: Recipe) => void,
-  onRemove: (id: string, day: string) => void 
+  onRecipeClick: (r: Recipe) => void, 
+  onRemove: (id: string, day: string) => void,
+  isFavorite?: (id: string) => boolean,
+  onToggleFavorite?: (r: Recipe) => void
 }) {
   const isNote = 'type' in item && item.type === 'note';
   const {
@@ -137,7 +140,23 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove }: {
         <GripVertical size={16} />
       </div>
       <div className="pl-8">
-        <h4 className="text-xs font-bold leading-tight pr-4">{isNote ? (item as Note).text : (item as Recipe).title}</h4>
+        <div className="flex items-start justify-between gap-2">
+          <h4 className="text-xs font-bold leading-tight pr-4">{isNote ? (item as Note).text : (item as Recipe).title}</h4>
+          {!isNote && isFavorite && onToggleFavorite && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(item as Recipe);
+              }}
+              className={cn(
+                "shrink-0 transition-colors",
+                isFavorite(item.id) ? "text-red-500" : "text-[#8E8E8E] hover:text-red-500"
+              )}
+            >
+              <Heart size={12} className={cn(isFavorite(item.id) && "fill-current")} />
+            </button>
+          )}
+        </div>
         {!isNote && (
           <div className="flex items-center gap-2 mt-2 opacity-60">
             <Clock size={10} />
@@ -156,7 +175,7 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove }: {
           e.stopPropagation();
           onRemove(item.id, day);
         }}
-        className="absolute top-2 right-2 text-[#8E8E8E] hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
+        className="absolute bottom-2 right-2 text-[#8E8E8E] hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
       >
         <Trash2 size={12} />
       </button>
@@ -164,11 +183,13 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove }: {
   );
 }
 
-function DroppableDay({ day, items, onRecipeClick, onRemove }: { 
+function DroppableDay({ day, items, onRecipeClick, onRemove, isFavorite, onToggleFavorite }: { 
   day: string, 
   items: MealItem[], 
   onRecipeClick: (r: Recipe) => void,
-  onRemove: (id: string, day: string) => void 
+  onRemove: (id: string, day: string) => void,
+  isFavorite: (id: string) => boolean,
+  onToggleFavorite: (r: Recipe) => void
 }) {
   const { setNodeRef, isOver } = useSortable({ id: day });
 
@@ -191,6 +212,8 @@ function DroppableDay({ day, items, onRecipeClick, onRemove }: {
                 day={day} 
                 onRecipeClick={onRecipeClick} 
                 onRemove={onRemove} 
+                isFavorite={isFavorite}
+                onToggleFavorite={onToggleFavorite}
               />
             ))
           ) : (
@@ -313,6 +336,11 @@ export default function App() {
   const [activeItem, setActiveItem] = useState<MealItem | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [recipeSubTab, setRecipeSubTab] = useState<'search' | 'favorites'>('search');
+  const [favorites, setFavorites] = useState<Recipe[]>(() => {
+    const saved = localStorage.getItem('mealmaker_favorites');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [openPlannerId, setOpenPlannerId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -346,6 +374,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mealmaker_lang', lang);
   }, [lang]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_favorites', JSON.stringify(favorites));
+  }, [favorites]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenPlannerId(null);
@@ -543,6 +575,19 @@ export default function App() {
       prev.includes(id) ? prev.filter(rid => rid !== id) : [...prev, id]
     );
   };
+
+  const toggleFavorite = (recipe: Recipe) => {
+    setFavorites(prev => {
+      const isFav = prev.some(r => r.id === recipe.id);
+      if (isFav) {
+        return prev.filter(r => r.id !== recipe.id);
+      } else {
+        return [...prev, recipe];
+      }
+    });
+  };
+
+  const isFavorite = (id: string) => favorites.some(r => r.id === id);
 
   const selectedRecipes = recipes.filter(r => selectedRecipeIds.includes(r.id));
   
@@ -925,10 +970,46 @@ export default function App() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-12"
+              className="flex flex-col gap-8"
             >
-              {/* Left Column: Inputs */}
-              <div className="lg:col-span-4 space-y-8">
+              {/* Sub-tabs for Recipes */}
+              <div className="flex gap-8 border-b border-[#E6E0D4]">
+                <button 
+                  onClick={() => setRecipeSubTab('search')}
+                  className={cn(
+                    "pb-4 text-sm font-bold uppercase tracking-widest transition-all relative",
+                    recipeSubTab === 'search' ? "text-[#5A5A40]" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Search size={16} />
+                    {t('search')}
+                  </div>
+                  {recipeSubTab === 'search' && (
+                    <motion.div layoutId="recipeSubTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5A5A40]" />
+                  )}
+                </button>
+                <button 
+                  onClick={() => setRecipeSubTab('favorites')}
+                  className={cn(
+                    "pb-4 text-sm font-bold uppercase tracking-widest transition-all relative",
+                    recipeSubTab === 'favorites' ? "text-[#5A5A40]" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Heart size={16} className={cn(recipeSubTab === 'favorites' && "fill-current")} />
+                    {t('favorites')}
+                  </div>
+                  {recipeSubTab === 'favorites' && (
+                    <motion.div layoutId="recipeSubTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5A5A40]" />
+                  )}
+                </button>
+              </div>
+
+              {recipeSubTab === 'search' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                  {/* Left Column: Inputs */}
+                  <div className="lg:col-span-4 space-y-8">
                 <section className="bg-white p-6 rounded-[32px] shadow-sm border border-[#E6E0D4]">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-serif font-semibold flex items-center gap-2">
@@ -1131,218 +1212,435 @@ export default function App() {
                 <AnimatePresence mode="wait">
                   {recipes.length > 0 ? (
                     <motion.div 
+                      key="search-results"
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
                       className="space-y-8"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-2xl font-serif font-bold">{lang === 'fr' ? 'Recommandé pour vous' : 'Recommended for You'}</h2>
-                        <span className="text-sm text-[#8E8E8E]">{recipes.length} {lang === 'fr' ? 'recettes trouvées' : 'recipes found'}</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
-                        {recipes.map((recipe, idx) => (
-                          <motion.div 
-                            key={recipe.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.1 }}
-                            className="bg-white rounded-[32px] overflow-hidden border border-[#E6E0D4] shadow-sm hover:shadow-md transition-shadow"
-                          >
-                            <div className="p-8">
-                              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
-                                <div>
-                                  <div className="flex flex-wrap gap-2 mb-3">
-                                    {recipe.dietaryTags.map(tag => (
-                                      <span key={tag} className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                                        {tag}
+                        <div className="flex items-center justify-between mb-2">
+                          <h2 className="text-2xl font-serif font-bold">{lang === 'fr' ? 'Recommandé pour vous' : 'Recommended for You'}</h2>
+                          <span className="text-sm text-[#8E8E8E]">{recipes.length} {lang === 'fr' ? 'recettes trouvées' : 'recipes found'}</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
+                          {recipes.map((recipe, idx) => (
+                            <motion.div 
+                              key={recipe.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.1 }}
+                              className="bg-white rounded-[32px] overflow-hidden border border-[#E6E0D4] shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <div className="p-8">
+                                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
+                                  <div>
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                      {recipe.dietaryTags.map(tag => (
+                                        <span key={tag} className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                          {tag}
+                                        </span>
+                                      ))}
+                                      <span className="px-2 py-1 bg-[#F5F5F0] text-[#5A5A40] rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                        {recipe.cuisine}
                                       </span>
-                                    ))}
-                                    <span className="px-2 py-1 bg-[#F5F5F0] text-[#5A5A40] rounded-md text-[10px] font-bold uppercase tracking-wider">
-                                      {recipe.cuisine}
-                                    </span>
-                                  </div>
-                                  <h3 className="text-2xl font-serif font-bold mb-2">{recipe.title}</h3>
-                                  <p className="text-[#5A5A40] text-sm leading-relaxed max-w-2xl">{recipe.description}</p>
-                                  
-                                  <div className="flex flex-wrap gap-3 mt-4">
-                                    <button 
-                                      onClick={() => toggleRecipeSelection(recipe.id)}
-                                      className={cn(
-                                        "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2",
-                                        selectedRecipeIds.includes(recipe.id)
-                                          ? "bg-[#5A5A40] text-white"
-                                          : "bg-[#F5F5F0] text-[#5A5A40] hover:bg-[#E6E0D4]"
-                                      )}
-                                    >
-                                      {selectedRecipeIds.includes(recipe.id) ? (
-                                        <>
-                                          <Check size={14} />
-                                          {lang === 'fr' ? 'Ajouté' : 'Added to List'}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Plus size={14} />
-                                          {lang === 'fr' ? 'Ajouter à la liste' : 'Add to Shopping List'}
-                                        </>
-                                      )}
-                                    </button>
-
-                                    <div className="relative group/planner">
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4 mb-2">
+                                      <h3 className="text-2xl font-serif font-bold">{recipe.title}</h3>
                                       <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setOpenPlannerId(openPlannerId === recipe.id ? null : recipe.id);
-                                        }}
-                                        className="px-4 py-2 bg-[#F5F5F0] text-[#5A5A40] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#E6E0D4] transition-all flex items-center gap-2"
+                                        onClick={() => toggleFavorite(recipe)}
+                                        className={cn(
+                                          "p-2 rounded-full transition-all",
+                                          isFavorite(recipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:bg-[#F5F5F0]"
+                                        )}
+                                        title={isFavorite(recipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
                                       >
-                                        <Calendar size={14} />
-                                        {t('saveToPlanner')}
+                                        <Heart size={20} className={cn(isFavorite(recipe.id) && "fill-current")} />
                                       </button>
-                                      {/* Dropdown with bridge to prevent disappearing */}
-                                      <div className={cn(
-                                        "absolute top-full left-0 pt-1 z-10 min-w-[150px]",
-                                        openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
-                                      )}>
-                                        <div className="bg-white border border-[#E6E0D4] rounded-xl shadow-xl p-2">
-                                          {DAYS_OF_WEEK.map(day => (
-                                            <button 
-                                              key={day}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                addToMealPlan(recipe, day);
-                                              }}
-                                              className="w-full text-left px-3 py-2 text-xs hover:bg-[#F5F5F0] rounded-lg transition-colors"
-                                            >
-                                              {t(`days.${day}`)}
-                                            </button>
-                                          ))}
+                                    </div>
+                                    <p className="text-[#5A5A40] text-sm leading-relaxed max-w-2xl">{recipe.description}</p>
+                                    
+                                    <div className="flex flex-wrap gap-3 mt-4">
+                                      <button 
+                                        onClick={() => toggleRecipeSelection(recipe.id)}
+                                        className={cn(
+                                          "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2",
+                                          selectedRecipeIds.includes(recipe.id)
+                                            ? "bg-[#5A5A40] text-white"
+                                            : "bg-[#F5F5F0] text-[#5A5A40] hover:bg-[#E6E0D4]"
+                                        )}
+                                      >
+                                        {selectedRecipeIds.includes(recipe.id) ? (
+                                          <>
+                                            <Check size={14} />
+                                            {lang === 'fr' ? 'Ajouté' : 'Added to List'}
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Plus size={14} />
+                                            {lang === 'fr' ? 'Ajouter à la liste' : 'Add to Shopping List'}
+                                          </>
+                                        )}
+                                      </button>
+
+                                      <div className="relative group/planner">
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenPlannerId(openPlannerId === recipe.id ? null : recipe.id);
+                                          }}
+                                          className="px-4 py-2 bg-[#F5F5F0] text-[#5A5A40] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#E6E0D4] transition-all flex items-center gap-2"
+                                        >
+                                          <Calendar size={14} />
+                                          {t('saveToPlanner')}
+                                        </button>
+                                        {/* Dropdown with bridge to prevent disappearing */}
+                                        <div className={cn(
+                                          "absolute top-full left-0 pt-1 z-10 min-w-[150px]",
+                                          openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
+                                        )}>
+                                          <div className="bg-white border border-[#E6E0D4] rounded-xl shadow-xl p-2">
+                                            {DAYS_OF_WEEK.map(day => (
+                                              <button 
+                                                key={day}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  addToMealPlan(recipe, day);
+                                                }}
+                                                className="w-full text-left px-3 py-2 text-xs hover:bg-[#F5F5F0] rounded-lg transition-colors"
+                                              >
+                                                {t(`days.${day}`)}
+                                              </button>
+                                            ))}
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
                                   </div>
+                                  
+                                  <div className="grid grid-cols-2 md:flex md:flex-col gap-4 md:items-end">
+                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                      <Clock size={16} />
+                                      <span className="text-sm font-semibold">{recipe.totalTime}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                      <Users size={16} />
+                                      <span className="text-sm font-semibold">{recipe.servings} {t('servings')}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                      <DollarSign size={16} />
+                                      <span className="text-sm font-semibold">{recipe.costPerPortion}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                      <Flame size={16} />
+                                      <span className="text-sm font-semibold">{recipe.caloriesPerPortion} {t('calories')}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                      <Dumbbell size={16} />
+                                      <span className="text-sm font-semibold">{recipe.proteinPerPortion} {t('protein')}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                
-                                <div className="grid grid-cols-2 md:flex md:flex-col gap-4 md:items-end">
-                                  <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                                    <Clock size={16} />
-                                    <span className="text-sm font-semibold">{recipe.totalTime}</span>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[#F5F5F0]">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
+                                      <button 
+                                        onClick={() => copyMissingIngredients(recipe)}
+                                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] hover:opacity-70 transition-opacity"
+                                      >
+                                        {copiedId === recipe.id ? (
+                                          <>
+                                            <Check size={12} className="text-green-600" />
+                                            {t('copied')}
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy size={12} />
+                                            {t('copyMissing')}
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                    <ul className="space-y-2">
+                                      {recipe.ingredients.map((ing, i) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm">
+                                          <span className={cn(
+                                            "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                                            ing.isMissing ? "bg-orange-400" : "bg-green-400"
+                                          )} />
+                                          <span className={cn(
+                                            ing.isMissing ? "text-[#8E8E8E]" : "text-[#2D2D2D]"
+                                          )}>
+                                            <span className="font-semibold">{ing.amount}</span> {ing.name}
+                                            {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
                                   </div>
-                                  <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                                    <Users size={16} />
-                                    <span className="text-sm font-semibold">{recipe.servings} {t('servings')}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                                    <DollarSign size={16} />
-                                    <span className="text-sm font-semibold">{recipe.costPerPortion}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                                    <Flame size={16} />
-                                    <span className="text-sm font-semibold">{recipe.caloriesPerPortion} {t('calories')}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                                    <Dumbbell size={16} />
-                                    <span className="text-sm font-semibold">{recipe.proteinPerPortion} {t('protein')}</span>
+
+                                  <div>
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h4>
+                                    <ol className="space-y-4">
+                                      {recipe.instructions.map((step, i) => (
+                                        <li key={i} className="flex gap-4 text-sm">
+                                          <span className="font-serif italic text-[#5A5A40] opacity-30 text-lg leading-none">{i + 1}</span>
+                                          <p className="leading-relaxed">{step}</p>
+                                        </li>
+                                      ))}
+                                    </ol>
                                   </div>
                                 </div>
                               </div>
+                            </motion.div>
+                          ))}
+                        </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[#F5F5F0]">
-                                <div>
-                                  <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
-                                    <button 
-                                      onClick={() => copyMissingIngredients(recipe)}
-                                      className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] hover:opacity-70 transition-opacity"
-                                    >
-                                      {copiedId === recipe.id ? (
-                                        <>
-                                          <Check size={12} className="text-green-600" />
-                                          {t('copied')}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy size={12} />
-                                          {t('copyMissing')}
-                                        </>
-                                      )}
-                                    </button>
+                        {/* Load More Button */}
+                        <div className="flex justify-center pt-4 pb-12">
+                          <button
+                            onClick={() => generateRecipes(true)}
+                            disabled={loadingMore}
+                            className="px-8 py-4 bg-white border border-[#E6E0D4] text-[#5A5A40] rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#F5F5F0] transition-all disabled:opacity-50 shadow-sm"
+                          >
+                            {loadingMore ? (
+                              <>
+                                <RefreshCw className="animate-spin" size={18} />
+                                {t('generating')}
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={18} />
+                                {t('generateMore')}
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        key="no-search-results"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="h-[60vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#E6E0D4] rounded-[48px]"
+                      >
+                        <div className="w-20 h-20 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] mb-6">
+                          <Search size={32} />
+                        </div>
+                        <h2 className="text-2xl font-serif font-bold mb-3">{t('readyToCook')}</h2>
+                        <p className="text-[#8E8E8E] max-w-md mx-auto leading-relaxed">
+                          {t('noRecipes')}
+                        </p>
+                      </motion.div>
+                    )}
+                </AnimatePresence>
+              </div>
+            </div>
+          ) : (
+            <motion.div 
+              key="favorites-tab"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-8"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-serif font-bold">{t('favorites')}</h2>
+                <span className="text-sm text-[#8E8E8E]">{favorites.length} {lang === 'fr' ? 'recettes enregistrées' : 'recipes saved'}</span>
+              </div>
+              
+              {favorites.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
+                  {favorites.map((recipe, idx) => (
+                    <motion.div 
+                      key={recipe.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="bg-white rounded-[32px] overflow-hidden border border-[#E6E0D4] shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="p-8">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
+                          <div>
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {recipe.dietaryTags.map(tag => (
+                                <span key={tag} className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                  {tag}
+                                </span>
+                              ))}
+                              <span className="px-2 py-1 bg-[#F5F5F0] text-[#5A5A40] rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                {recipe.cuisine}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 mb-2">
+                              <h3 className="text-2xl font-serif font-bold">{recipe.title}</h3>
+                              <button 
+                                onClick={() => toggleFavorite(recipe)}
+                                className={cn(
+                                  "p-2 rounded-full transition-all",
+                                  isFavorite(recipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:bg-[#F5F5F0]"
+                                )}
+                                title={isFavorite(recipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
+                              >
+                                <Heart size={20} className={cn(isFavorite(recipe.id) && "fill-current")} />
+                              </button>
+                            </div>
+                            <p className="text-[#5A5A40] text-sm leading-relaxed max-w-2xl">{recipe.description}</p>
+                            
+                            <div className="flex flex-wrap gap-3 mt-4">
+                              <button 
+                                onClick={() => toggleRecipeSelection(recipe.id)}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2",
+                                  selectedRecipeIds.includes(recipe.id)
+                                    ? "bg-[#5A5A40] text-white"
+                                    : "bg-[#F5F5F0] text-[#5A5A40] hover:bg-[#E6E0D4]"
+                                )}
+                              >
+                                {selectedRecipeIds.includes(recipe.id) ? (
+                                  <>
+                                    <Check size={14} />
+                                    {lang === 'fr' ? 'Ajouté' : 'Added to List'}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus size={14} />
+                                    {lang === 'fr' ? 'Ajouter à la liste' : 'Add to Shopping List'}
+                                  </>
+                                )}
+                              </button>
+
+                              <div className="relative group/planner">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenPlannerId(openPlannerId === recipe.id ? null : recipe.id);
+                                  }}
+                                  className="px-4 py-2 bg-[#F5F5F0] text-[#5A5A40] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#E6E0D4] transition-all flex items-center gap-2"
+                                >
+                                  <Calendar size={14} />
+                                  {t('saveToPlanner')}
+                                </button>
+                                {/* Dropdown with bridge to prevent disappearing */}
+                                <div className={cn(
+                                  "absolute top-full left-0 pt-1 z-10 min-w-[150px]",
+                                  openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
+                                )}>
+                                  <div className="bg-white border border-[#E6E0D4] rounded-xl shadow-xl p-2">
+                                    {DAYS_OF_WEEK.map(day => (
+                                      <button 
+                                        key={day}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          addToMealPlan(recipe, day);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-[#F5F5F0] rounded-lg transition-colors"
+                                      >
+                                        {t(`days.${day}`)}
+                                      </button>
+                                    ))}
                                   </div>
-                                  <ul className="space-y-2">
-                                    {recipe.ingredients.map((ing, i) => (
-                                      <li key={i} className="flex items-start gap-2 text-sm">
-                                        <span className={cn(
-                                          "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                                          ing.isMissing ? "bg-orange-400" : "bg-green-400"
-                                        )} />
-                                        <span className={cn(
-                                          ing.isMissing ? "text-[#8E8E8E]" : "text-[#2D2D2D]"
-                                        )}>
-                                          <span className="font-semibold">{ing.amount}</span> {ing.name}
-                                          {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
-                                        </span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h4>
-                                  <ol className="space-y-4">
-                                    {recipe.instructions.map((step, i) => (
-                                      <li key={i} className="flex gap-4 text-sm">
-                                        <span className="font-serif italic text-[#5A5A40] opacity-30 text-lg leading-none">{i + 1}</span>
-                                        <p className="leading-relaxed">{step}</p>
-                                      </li>
-                                    ))}
-                                  </ol>
                                 </div>
                               </div>
                             </div>
-                          </motion.div>
-                        ))}
-                      </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:flex md:flex-col gap-4 md:items-end">
+                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                              <Clock size={16} />
+                              <span className="text-sm font-semibold">{recipe.totalTime}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                              <Users size={16} />
+                              <span className="text-sm font-semibold">{recipe.servings} {t('servings')}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                              <DollarSign size={16} />
+                              <span className="text-sm font-semibold">{recipe.costPerPortion}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                              <Flame size={16} />
+                              <span className="text-sm font-semibold">{recipe.caloriesPerPortion} {t('calories')}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                              <Dumbbell size={16} />
+                              <span className="text-sm font-semibold">{recipe.proteinPerPortion} {t('protein')}</span>
+                            </div>
+                          </div>
+                        </div>
 
-                      {/* Load More Button */}
-                      <div className="flex justify-center pt-4 pb-12">
-                        <button
-                          onClick={() => generateRecipes(true)}
-                          disabled={loadingMore}
-                          className="px-8 py-4 bg-white border border-[#E6E0D4] text-[#5A5A40] rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#F5F5F0] transition-all disabled:opacity-50 shadow-sm"
-                        >
-                          {loadingMore ? (
-                            <>
-                              <RefreshCw className="animate-spin" size={18} />
-                              {t('generating')}
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={18} />
-                              {t('generateMore')}
-                            </>
-                          )}
-                        </button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[#F5F5F0]">
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
+                              <button 
+                                onClick={() => copyMissingIngredients(recipe)}
+                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] hover:opacity-70 transition-opacity"
+                              >
+                                {copiedId === recipe.id ? (
+                                  <>
+                                    <Check size={12} className="text-green-600" />
+                                    {t('copied')}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={12} />
+                                    {t('copyMissing')}
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <ul className="space-y-2">
+                              {recipe.ingredients.map((ing, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm">
+                                  <span className={cn(
+                                    "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                                    ing.isMissing ? "bg-orange-400" : "bg-green-400"
+                                  )} />
+                                  <span className={cn(
+                                    ing.isMissing ? "text-[#8E8E8E]" : "text-[#2D2D2D]"
+                                  )}>
+                                    <span className="font-semibold">{ing.amount}</span> {ing.name}
+                                    {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div>
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h4>
+                            <ol className="space-y-4">
+                              {recipe.instructions.map((step, i) => (
+                                <li key={i} className="flex gap-4 text-sm">
+                                  <span className="font-serif italic text-[#5A5A40] opacity-30 text-lg leading-none">{i + 1}</span>
+                                  <p className="leading-relaxed">{step}</p>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        </div>
                       </div>
                     </motion.div>
-                  ) : (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="h-[60vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#E6E0D4] rounded-[48px]"
-                    >
-                      <div className="w-20 h-20 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] mb-6">
-                        <Search size={32} />
-                      </div>
-                      <h2 className="text-2xl font-serif font-bold mb-3">{t('readyToCook')}</h2>
-                      <p className="text-[#8E8E8E] max-w-md mx-auto leading-relaxed">
-                        {t('noRecipes')}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-[40vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#E6E0D4] rounded-[48px]">
+                  <div className="w-16 h-16 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] mb-4">
+                    <Heart size={24} />
+                  </div>
+                  <p className="text-[#8E8E8E] max-w-xs mx-auto leading-relaxed">
+                    {t('noFavorites')}
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
+        </motion.div>
+      )}
 
           {activeTab === 'pantry' && (
             <motion.div 
@@ -1529,6 +1827,8 @@ export default function App() {
                       items={mealPlan[day] || []} 
                       onRecipeClick={setViewingPlannerRecipe}
                       onRemove={removeFromMealPlan}
+                      isFavorite={isFavorite}
+                      onToggleFavorite={toggleFavorite}
                     />
                   ))}
                 </div>
@@ -1583,7 +1883,19 @@ export default function App() {
               className="fixed inset-4 md:inset-20 bg-white z-[110] rounded-[48px] shadow-2xl overflow-hidden flex flex-col"
             >
               <div className="p-6 md:p-10 border-b border-[#F5F5F0] flex items-center justify-between bg-white sticky top-0">
-                <h2 className="text-2xl md:text-3xl font-serif font-bold">{viewingPlannerRecipe.title}</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-2xl md:text-3xl font-serif font-bold">{viewingPlannerRecipe.title}</h2>
+                  <button
+                    onClick={() => toggleFavorite(viewingPlannerRecipe)}
+                    className={cn(
+                      "p-2 rounded-full transition-all hover:scale-110 active:scale-95",
+                      isFavorite(viewingPlannerRecipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:text-red-500 bg-[#F5F5F0]"
+                    )}
+                    title={isFavorite(viewingPlannerRecipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
+                  >
+                    <Heart size={20} className={cn(isFavorite(viewingPlannerRecipe.id) && "fill-current")} />
+                  </button>
+                </div>
                 <button 
                   onClick={() => setViewingPlannerRecipe(null)}
                   className="w-10 h-10 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] hover:bg-[#E6E0D4] transition-colors"
