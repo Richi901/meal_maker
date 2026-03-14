@@ -18,6 +18,7 @@ export interface Recipe {
   }[];
   instructions: string[];
   dietaryTags: string[];
+  category?: string;
 }
 
 export interface Note {

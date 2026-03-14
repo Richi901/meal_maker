@@ -1,5 +1,29 @@
 @import "tailwindcss";
 
+:root {
+  --primary: #5A5A40;
+  --secondary: #F5F5F0;
+  --accent: #E6E0D4;
+  --bg: #FDFCFB;
+  --text: #2D2D2D;
+}
+
+.dark {
+  --primary: #A3A380;
+  --secondary: #1A1A1A;
+  --accent: #2D2D2D;
+  --bg: #0A0A0A;
+  --text: #F5F5F0;
+}
+
+@theme {
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-text: var(--text);
+}
+
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;

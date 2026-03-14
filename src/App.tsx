@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   Trash2,
   ChevronRight,
+  ChevronDown,
   ArrowUp,
   Calendar,
   Box,
@@ -24,7 +25,10 @@ import {
   Dumbbell,
   GripVertical,
   Menu,
-  Heart
+  Heart,
+  Settings,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -96,9 +100,167 @@ const REFRIGERATOR_STAPLES = [
   "Milk", "Eggs", "Butter", "Cheese", "Yogurt", "Carrots", "Onions", "Garlic", "Ginger", "Lemons", "Limes", "Mayonnaise", "Mustard", "Ketchup"
 ];
 
+const COLOR_SCHEMES = [
+  {
+    id: 'classic',
+    primary: '#5A5A40',
+    secondary: '#F5F5F0',
+    accent: '#E6E0D4',
+    bg: '#FDFCFB',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'dark',
+    primary: '#FFFFFF',
+    secondary: '#1A1A1A',
+    accent: '#333333',
+    bg: '#0A0A0A',
+    text: '#F5F5F5'
+  },
+  {
+    id: 'ocean',
+    primary: '#1E3A8A',
+    secondary: '#DBEAFE',
+    accent: '#BFDBFE',
+    bg: '#F8FAFC',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'forest',
+    primary: '#064E3B',
+    secondary: '#D1FAE5',
+    accent: '#A7F3D0',
+    bg: '#F0FDF4',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'sunset',
+    primary: '#7C2D12',
+    secondary: '#FFEDD5',
+    accent: '#FED7AA',
+    bg: '#FFF7ED',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'berry',
+    primary: '#701A75',
+    secondary: '#FAE8FF',
+    accent: '#F5D0FE',
+    bg: '#FDF4FF',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'slate',
+    primary: '#0F172A',
+    secondary: '#F1F5F9',
+    accent: '#E2E8F0',
+    bg: '#F8FAFC',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'rose',
+    primary: '#881337',
+    secondary: '#FFE4E6',
+    accent: '#FECDD3',
+    bg: '#FFF1F2',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'amber',
+    primary: '#78350F',
+    secondary: '#FEF3C7',
+    accent: '#FDE68A',
+    bg: '#FFFBEB',
+    text: '#2D2D2D'
+  },
+  {
+    id: 'brutalist',
+    primary: '#000000',
+    secondary: '#00FF00',
+    accent: '#FFFFFF',
+    bg: '#FFFFFF',
+    text: '#000000'
+  }
+];
+
 const FREEZER_STAPLES = [
   "Frozen Peas", "Frozen Corn", "Frozen Berries", "Chicken Breast", "Ground Beef", "Fish Fillets", "Frozen Spinach", "Ice Cream"
 ];
+
+const PANTRY_CATEGORIES = [
+  "Spices",
+  "Produce",
+  "Canned goods and proteins",
+  "Grains and starches",
+  "Baking",
+  "Oil/vinegar and condiments",
+  "Snack and breakfast",
+  "Beverages",
+  "Others"
+] as const;
+
+const REFRIGERATOR_CATEGORIES = [
+  "Condiments and drinks",
+  "Meat Poultry and Seafood",
+  "Dairy Products and eggs",
+  "Fruits and vegetables",
+  "Others"
+] as const;
+
+const FREEZER_CATEGORIES = [
+  "Meat Poultry and Seafood",
+  "Ready Meals",
+  "Vegetable and Fruits",
+  "Grains and bread",
+  "Others"
+] as const;
+
+type ItemCategory = typeof PANTRY_CATEGORIES[number] | typeof REFRIGERATOR_CATEGORIES[number] | typeof FREEZER_CATEGORIES[number];
+
+const STAPLE_CATEGORY_MAP: Record<string, ItemCategory> = {
+  // Pantry
+  "Salt": "Spices",
+  "Black Pepper": "Spices",
+  "Garlic Powder": "Spices",
+  "Onion Powder": "Spices",
+  "Dried Oregano": "Spices",
+  "Dried Basil": "Spices",
+  "Olive Oil": "Oil/vinegar and condiments",
+  "Vegetable Oil": "Oil/vinegar and condiments",
+  "Soy Sauce": "Oil/vinegar and condiments",
+  "Vinegar": "Oil/vinegar and condiments",
+  "Honey": "Oil/vinegar and condiments",
+  "Flour": "Baking",
+  "Sugar": "Baking",
+  "Rice": "Grains and starches",
+  "Pasta": "Grains and starches",
+  "Canned Tomatoes": "Canned goods and proteins",
+  "Beans": "Canned goods and proteins",
+  // Refrigerator
+  "Milk": "Condiments and drinks",
+  "Eggs": "Dairy Products and eggs",
+  "Butter": "Dairy Products and eggs",
+  "Cheese": "Dairy Products and eggs",
+  "Yogurt": "Dairy Products and eggs",
+  "Carrots": "Fruits and vegetables",
+  "Onions": "Fruits and vegetables",
+  "Garlic": "Fruits and vegetables",
+  "Ginger": "Fruits and vegetables",
+  "Lemons": "Fruits and vegetables",
+  "Limes": "Fruits and vegetables",
+  "Mayonnaise": "Condiments and drinks",
+  "Mustard": "Condiments and drinks",
+  "Ketchup": "Condiments and drinks",
+  // Freezer
+  "Frozen Peas": "Vegetable and Fruits",
+  "Frozen Corn": "Vegetable and Fruits",
+  "Frozen Berries": "Vegetable and Fruits",
+  "Chicken Breast": "Meat Poultry and Seafood",
+  "Ground Beef": "Meat Poultry and Seafood",
+  "Fish Fillets": "Meat Poultry and Seafood",
+  "Frozen Spinach": "Vegetable and Fruits",
+  "Ice Cream": "Others"
+};
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
@@ -132,7 +294,7 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onT
       style={style}
       className={cn(
         "p-3 rounded-2xl relative group cursor-pointer transition-colors",
-        isNote ? "bg-orange-50 border border-orange-100 hover:bg-orange-100" : "bg-[#F5F5F0] hover:bg-[#E6E0D4]"
+        isNote ? "bg-orange-50 border border-orange-100 hover:bg-orange-100" : "bg-[var(--secondary)] hover:bg-[var(--accent)]"
       )}
       onClick={() => !isNote && onRecipeClick(item as Recipe)}
     >
@@ -199,8 +361,8 @@ function DroppableDay({ day, items, onRecipeClick, onRemove, isFavorite, onToggl
       <div 
         ref={setNodeRef}
         className={cn(
-          "flex-1 min-h-[200px] bg-white border rounded-3xl p-3 space-y-3 transition-colors",
-          isOver ? "bg-[#F5F5F0] border-[#5A5A40]" : "border-[#E6E0D4]"
+          "flex-1 min-h-[200px] bg-[var(--bg)] border rounded-3xl p-3 space-y-3 transition-colors",
+          isOver ? "bg-[var(--secondary)] border-[var(--primary)]" : "border-[var(--accent)]"
         )}
       >
         <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
@@ -217,7 +379,7 @@ function DroppableDay({ day, items, onRecipeClick, onRemove, isFavorite, onToggl
               />
             ))
           ) : (
-            <div className="h-full flex items-center justify-center border-2 border-dashed border-[#F5F5F0] rounded-2xl">
+            <div className="h-full flex items-center justify-center border-2 border-dashed border-[var(--secondary)] rounded-2xl">
               <span className="text-[10px] text-[#8E8E8E] italic">No meals</span>
             </div>
           )}
@@ -229,11 +391,34 @@ function DroppableDay({ day, items, onRecipeClick, onRemove, isFavorite, onToggl
 
 type InventoryCategory = 'pantry' | 'refrigerator' | 'freezer';
 
+const COMMON_INGREDIENTS = [
+  "Chicken Breast", "Ground Beef", "Salmon Fillet", "Tofu", "Eggs", "Milk", "Greek Yogurt", "Butter", "Cheddar Cheese", "Parmesan",
+  "Onions", "Garlic", "Ginger", "Spinach", "Kale", "Broccoli", "Carrots", "Bell Peppers", "Tomatoes", "Potatoes", "Sweet Potatoes",
+  "Lemons", "Limes", "Apples", "Bananas", "Avocado", "Cilantro", "Parsley", "Basil", "Oregano", "Thyme", "Rosemary",
+  "Olive Oil", "Vegetable Oil", "Soy Sauce", "Rice Vinegar", "Balsamic Vinegar", "Honey", "Maple Syrup", "Dijon Mustard", "Mayonnaise",
+  "Rice", "Quinoa", "Pasta", "Flour", "Sugar", "Baking Powder", "Baking Soda", "Yeast", "Cornstarch",
+  "Black Beans", "Chickpeas", "Lentils", "Canned Tomatoes", "Coconut Milk", "Chicken Broth", "Vegetable Broth",
+  "Salt", "Black Pepper", "Paprika", "Cumin", "Coriander", "Turmeric", "Chili Powder", "Garlic Powder", "Onion Powder",
+  "Frozen Peas", "Frozen Corn", "Frozen Berries", "Frozen Spinach", "Ice Cream",
+  // Additional Items & Brands
+  "Heinz Ketchup", "Hellmann's Mayonnaise", "Quaker Oats", "Barilla Pasta", "Kikkoman Soy Sauce", "Tabasco Hot Sauce", 
+  "Nutella", "Philadelphia Cream Cheese", "Chobani Yogurt", "Tyson Chicken", "Beyond Meat", "Impossible Burger",
+  "Shrimp", "Scallops", "Pork Chops", "Bacon", "Sausage", "Heavy Cream", "Sour Cream", "Feta Cheese", "Mozzarella",
+  "Zucchini", "Eggplant", "Mushrooms", "Asparagus", "Blueberries", "Strawberries", "Raspberries", "Walnuts", "Almonds", 
+  "Cashews", "Peanut Butter", "Almond Butter", "Chia Seeds", "Flax Seeds", "Couscous", "Bulgur", "Sesame Oil", 
+  "Fish Sauce", "Sriracha", "Curry Paste", "Pesto", "Worcestershire Sauce", "Hoisin Sauce", "Oyster Sauce",
+  "Almond Milk", "Oat Milk", "Coconut Water", "Greek Feta", "Goat Cheese", "Prosciutto", "Salami", "Turkey Breast"
+];
+
 export default function App() {
   const [lang, setLang] = useState<Language>(() => {
     const saved = localStorage.getItem('mealmaker_lang');
     return (saved as Language) || 'en';
   });
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_lang', lang.toString());
+  }, [lang]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -261,6 +446,34 @@ export default function App() {
     const saved = localStorage.getItem('mealmaker_ingredients');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [themeColors, setThemeColors] = useState(() => {
+    const saved = localStorage.getItem('mealmaker_theme_colors');
+    const defaults = COLOR_SCHEMES[0];
+    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+  });
+
+  const toggleDarkMode = () => {
+    const isDark = themeColors.id === 'dark';
+    const nextScheme = isDark 
+      ? COLOR_SCHEMES.find(s => s.id === 'classic') || COLOR_SCHEMES[0]
+      : COLOR_SCHEMES.find(s => s.id === 'dark') || COLOR_SCHEMES[1];
+    setThemeColors(nextScheme);
+  };
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--primary', themeColors.primary);
+    document.documentElement.style.setProperty('--secondary', themeColors.secondary);
+    document.documentElement.style.setProperty('--accent', themeColors.accent);
+    document.documentElement.style.setProperty('--bg', themeColors.bg);
+    document.documentElement.style.setProperty('--text', themeColors.text);
+    localStorage.setItem('mealmaker_theme_colors', JSON.stringify(themeColors));
+    if (themeColors.id === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [themeColors]);
   const [inputIngredient, setInputIngredient] = useState('');
   const [restrictions, setRestrictions] = useState<string[]>(() => {
     const saved = localStorage.getItem('mealmaker_restrictions');
@@ -283,7 +496,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [showShoppingList, setShowShoppingList] = useState(false);
-  const [activeTab, setActiveTab] = useState<'recipes' | 'pantry' | 'planner'>('recipes');
+  const [activeTab, setActiveTab] = useState<'recipes' | 'pantry' | 'planner' | 'settings'>('recipes');
   const [inventory, setInventory] = useState<{ [key in InventoryCategory]: string[] }>(() => {
     const saved = localStorage.getItem('mealmaker_inventory');
     if (saved) return JSON.parse(saved);
@@ -326,7 +539,20 @@ export default function App() {
   });
   const [activeInventoryTab, setActiveInventoryTab] = useState<InventoryCategory>('pantry');
   const [inputPantryStaple, setInputPantryStaple] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<ItemCategory>('Others');
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [inputNote, setInputNote] = useState('');
+  const [customItemCategories, setCustomItemCategories] = useState<Record<string, ItemCategory>>(() => {
+    const saved = localStorage.getItem('mealmaker_custom_item_categories');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    [...PANTRY_CATEGORIES, ...REFRIGERATOR_CATEGORIES, ...FREEZER_CATEGORIES].forEach(cat => {
+      initial[cat] = false;
+    });
+    return initial;
+  });
   const [mealPlan, setMealPlan] = useState<{ [key: string]: MealItem[] }>(() => {
     const saved = localStorage.getItem('mealmaker_mealplan');
     return saved ? JSON.parse(saved) : {};
@@ -341,7 +567,19 @@ export default function App() {
     const saved = localStorage.getItem('mealmaker_favorites');
     return saved ? JSON.parse(saved) : [];
   });
+  const [favoriteCategory, setFavoriteCategory] = useState<string>('Any');
+  const [expandedFavoriteIds, setExpandedFavoriteIds] = useState<string[]>([]);
   const [openPlannerId, setOpenPlannerId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+
+  const [manualShoppingList, setManualShoppingList] = useState<string[]>(() => {
+    const saved = localStorage.getItem('mealmaker_manual_shopping');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [removedStaples, setRemovedStaples] = useState<{ [key in InventoryCategory]: string[] }>(() => {
+    const saved = localStorage.getItem('mealmaker_removed_staples');
+    return saved ? JSON.parse(saved) : { pantry: [], refrigerator: [], freezer: [] };
+  });
 
   useEffect(() => {
     localStorage.setItem('mealmaker_ingredients', JSON.stringify(ingredients));
@@ -366,6 +604,115 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mealmaker_mealplan', JSON.stringify(mealPlan));
   }, [mealPlan]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_manual_shopping', JSON.stringify(manualShoppingList));
+  }, [manualShoppingList]);
+
+  useEffect(() => {
+    if (!inputPantryStaple.trim()) return;
+    
+    const trimmed = inputPantryStaple.trim().toLowerCase();
+    const currentCategories = activeInventoryTab === 'pantry' ? PANTRY_CATEGORIES : 
+                             activeInventoryTab === 'refrigerator' ? REFRIGERATOR_CATEGORIES : 
+                             FREEZER_CATEGORIES;
+    
+    // 1. Check if it's a known staple (exact match)
+    const stapleMatch = Object.keys(STAPLE_CATEGORY_MAP).find(s => s.toLowerCase() === trimmed);
+    if (stapleMatch) {
+      const cat = STAPLE_CATEGORY_MAP[stapleMatch];
+      if ((currentCategories as readonly string[]).includes(cat)) {
+        setSelectedCategory(cat);
+        return;
+      }
+    }
+
+    // 2. Check customItemCategories (learned associations - exact match)
+    const customMatch = Object.keys(customItemCategories).find(s => s.toLowerCase() === trimmed);
+    if (customMatch) {
+      const cat = customItemCategories[customMatch];
+      if ((currentCategories as readonly string[]).includes(cat)) {
+        setSelectedCategory(cat);
+        return;
+      }
+    }
+
+    // 3. Word-based matching from learned associations and staples
+    const words = trimmed.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+      // Check custom associations first as they are user-defined
+      for (const word of words) {
+        const partialCustomMatch = Object.keys(customItemCategories).find(s => s.toLowerCase().includes(word));
+        if (partialCustomMatch) {
+          const cat = customItemCategories[partialCustomMatch];
+          if ((currentCategories as readonly string[]).includes(cat)) {
+            setSelectedCategory(cat);
+            return;
+          }
+        }
+      }
+
+      // Then check staples for partial matches
+      for (const word of words) {
+        const partialStapleMatch = Object.keys(STAPLE_CATEGORY_MAP).find(s => s.toLowerCase().includes(word));
+        if (partialStapleMatch) {
+          const cat = STAPLE_CATEGORY_MAP[partialStapleMatch];
+          if ((currentCategories as readonly string[]).includes(cat)) {
+            setSelectedCategory(cat);
+            return;
+          }
+        }
+      }
+    }
+
+    // 4. Simple keyword matching (hardcoded defaults)
+    if (activeInventoryTab === 'refrigerator') {
+      if (trimmed.includes('meat') || trimmed.includes('chicken') || trimmed.includes('beef') || trimmed.includes('fish') || trimmed.includes('salmon') || trimmed.includes('pork') || trimmed.includes('shrimp')) {
+        setSelectedCategory('Meat Poultry and Seafood');
+      } else if (trimmed.includes('milk') || trimmed.includes('egg') || trimmed.includes('cheese') || trimmed.includes('yogurt') || trimmed.includes('butter') || trimmed.includes('cream')) {
+        setSelectedCategory('Dairy Products and eggs');
+      } else if (trimmed.includes('fruit') || trimmed.includes('vegetable') || trimmed.includes('apple') || trimmed.includes('banana') || trimmed.includes('carrot') || trimmed.includes('onion') || trimmed.includes('garlic') || trimmed.includes('spinach')) {
+        setSelectedCategory('Fruits and vegetables');
+      } else if (trimmed.includes('drink') || trimmed.includes('juice') || trimmed.includes('soda') || trimmed.includes('water') || trimmed.includes('sauce') || trimmed.includes('ketchup') || trimmed.includes('mustard') || trimmed.includes('mayo')) {
+        setSelectedCategory('Condiments and drinks');
+      }
+    } else if (activeInventoryTab === 'freezer') {
+      if (trimmed.includes('meat') || trimmed.includes('chicken') || trimmed.includes('beef') || trimmed.includes('fish') || trimmed.includes('salmon') || trimmed.includes('pork') || trimmed.includes('shrimp')) {
+        setSelectedCategory('Meat Poultry and Seafood');
+      } else if (trimmed.includes('meal') || trimmed.includes('pizza') || trimmed.includes('dinner') || trimmed.includes('frozen')) {
+        setSelectedCategory('Ready Meals');
+      } else if (trimmed.includes('fruit') || trimmed.includes('vegetable') || trimmed.includes('berry') || trimmed.includes('peas') || trimmed.includes('corn')) {
+        setSelectedCategory('Vegetable and Fruits');
+      } else if (trimmed.includes('bread') || trimmed.includes('grain') || trimmed.includes('rice') || trimmed.includes('pasta')) {
+        setSelectedCategory('Grains and bread');
+      }
+    } else {
+      // Pantry
+      if (trimmed.includes('spice') || trimmed.includes('pepper') || trimmed.includes('salt') || trimmed.includes('powder')) {
+        setSelectedCategory('Spices');
+      } else if (trimmed.includes('oil') || trimmed.includes('vinegar') || trimmed.includes('honey') || trimmed.includes('syrup')) {
+        setSelectedCategory('Oil/vinegar and condiments');
+      } else if (trimmed.includes('flour') || trimmed.includes('sugar') || trimmed.includes('baking')) {
+        setSelectedCategory('Baking');
+      } else if (trimmed.includes('rice') || trimmed.includes('pasta') || trimmed.includes('grain') || trimmed.includes('quinoa')) {
+        setSelectedCategory('Grains and starches');
+      } else if (trimmed.includes('can') || trimmed.includes('bean') || trimmed.includes('tomato')) {
+        setSelectedCategory('Canned goods and proteins');
+      } else if (trimmed.includes('snack') || trimmed.includes('breakfast') || trimmed.includes('cereal') || trimmed.includes('chip')) {
+        setSelectedCategory('Snack and breakfast');
+      } else if (trimmed.includes('drink') || trimmed.includes('beverage') || trimmed.includes('tea') || trimmed.includes('coffee')) {
+        setSelectedCategory('Beverages');
+      }
+    }
+  }, [inputPantryStaple, activeInventoryTab, customItemCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_removed_staples', JSON.stringify(removedStaples));
+  }, [removedStaples]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_custom_item_categories', JSON.stringify(customItemCategories));
+  }, [customItemCategories]);
 
   useEffect(() => {
     localStorage.setItem('mealmaker_selected_ids', JSON.stringify(selectedRecipeIds));
@@ -491,41 +838,98 @@ export default function App() {
     });
   };
 
+  const showNotification = (message: string, type: 'success' | 'info' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const addToManualShoppingList = (item: string) => {
+    if (!manualShoppingList.includes(item)) {
+      setManualShoppingList(prev => [...prev, item]);
+      showNotification(lang === 'fr' ? `${item} ajouté au panier` : `${item} added to cart`);
+    }
+  };
+
+  const removeFromManualShoppingList = (item: string) => {
+    setManualShoppingList(prev => prev.filter(i => i !== item));
+  };
+
+  const addAllUnselectedToShoppingList = () => {
+    const unselected = [
+      ...(activeInventoryTab === 'pantry' ? PANTRY_STAPLES : 
+        activeInventoryTab === 'refrigerator' ? REFRIGERATOR_STAPLES : 
+        FREEZER_STAPLES).filter(s => !removedStaples[activeInventoryTab].includes(s)),
+      ...customInventory[activeInventoryTab]
+    ].filter(item => !inventory[activeInventoryTab].includes(item));
+
+    if (unselected.length === 0) return;
+
+    setManualShoppingList(prev => {
+      const newList = [...prev];
+      unselected.forEach(item => {
+        if (!newList.includes(item)) {
+          newList.push(item);
+        }
+      });
+      return newList;
+    });
+
+    showNotification(
+      lang === 'fr' 
+        ? `${unselected.length} articles ajoutés au panier` 
+        : `${unselected.length} items added to cart`
+    );
+  };
+
   const addCustomPantryStaple = (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = inputPantryStaple.trim();
     if (trimmed) {
+      // Check for duplicates
+      const existsInInventory = inventory[activeInventoryTab].includes(trimmed);
+      const existsInCustom = customInventory[activeInventoryTab].includes(trimmed);
       const isStaple = 
         (activeInventoryTab === 'pantry' && PANTRY_STAPLES.includes(trimmed)) ||
         (activeInventoryTab === 'refrigerator' && REFRIGERATOR_STAPLES.includes(trimmed)) ||
         (activeInventoryTab === 'freezer' && FREEZER_STAPLES.includes(trimmed));
 
-      if (isStaple) {
-        if (!inventory[activeInventoryTab].includes(trimmed)) {
-          setInventory(prev => ({
-            ...prev,
-            [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
-          }));
-        }
-      } else {
-        if (!customInventory[activeInventoryTab].includes(trimmed)) {
-          setCustomInventory(prev => ({
-            ...prev,
-            [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
-          }));
-        }
-        if (!inventory[activeInventoryTab].includes(trimmed)) {
-          setInventory(prev => ({
-            ...prev,
-            [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
-          }));
-        }
+      if (existsInInventory || existsInCustom || isStaple) {
+        setInventoryError(t('itemAlreadyInInventory'));
+        return;
       }
+
+      setInventoryError(null);
+      setCustomItemCategories(prev => ({
+        ...prev,
+        [trimmed]: selectedCategory
+      }));
+      setCustomInventory(prev => ({
+        ...prev,
+        [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
+      }));
+      setInventory(prev => ({
+        ...prev,
+        [activeInventoryTab]: [...prev[activeInventoryTab], trimmed]
+      }));
+      
       setInputPantryStaple('');
+      setSelectedCategory('Others');
     }
   };
 
-  const removeCustomInventoryItem = (item: string, category: InventoryCategory) => {
+  const removeInventoryItem = (item: string, category: InventoryCategory) => {
+    const isStaple = 
+      (category === 'pantry' && PANTRY_STAPLES.includes(item)) ||
+      (category === 'refrigerator' && REFRIGERATOR_STAPLES.includes(item)) ||
+      (category === 'freezer' && FREEZER_STAPLES.includes(item));
+
+    if (isStaple) {
+      setRemovedStaples(prev => ({
+        ...prev,
+        [category]: [...prev[category], item]
+      }));
+    }
+
     setCustomInventory(prev => ({
       ...prev,
       [category]: prev[category].filter(i => i !== item)
@@ -589,6 +993,16 @@ export default function App() {
 
   const isFavorite = (id: string) => favorites.some(r => r.id === id);
 
+  const toggleExpandFavorite = (id: string) => {
+    setExpandedFavoriteIds(prev => 
+      prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
+    );
+  };
+
+  const filteredFavorites = favorites.filter(recipe => 
+    favoriteCategory === 'Any' || recipe.category === favoriteCategory
+  );
+
   const selectedRecipes = recipes.filter(r => selectedRecipeIds.includes(r.id));
   
   const aggregateMissingIngredients = () => {
@@ -609,12 +1023,19 @@ export default function App() {
   };
 
   const copyFullShoppingList = () => {
-    const list = aggregateMissingIngredients()
-      .map(item => `- ${item.amount} ${item.name}`)
-      .join('\n');
+    const recipeIngredients = aggregateMissingIngredients()
+      .map(item => `- ${item.amount} ${item.name}`);
     
-    if (list) {
-      navigator.clipboard.writeText(`${t('shoppingListFor')} ${selectedRecipes.length} ${t('recipesSelected')}:\n\n${list}`);
+    const manualItems = manualShoppingList.map(item => `- ${item}`);
+    
+    const fullList = [...recipeIngredients, ...manualItems].join('\n');
+    
+    if (fullList) {
+      const header = selectedRecipes.length > 0 
+        ? `${t('shoppingListFor')} ${selectedRecipes.length} ${t('recipesSelected')}:\n\n`
+        : `${t('shoppingListTitle')}:\n\n`;
+      
+      navigator.clipboard.writeText(`${header}${fullList}`);
       setCopiedId('full-list');
       setTimeout(() => setCopiedId(null), 2000);
     }
@@ -692,6 +1113,7 @@ export default function App() {
       Cuisine Preference: ${cuisine}
       ${append ? `Avoid generating these recipes which I already have: ${existingTitles}` : ''}
 
+      For each recipe, assign it to one of these categories: ${MEAL_TYPES.filter(m => m !== 'Any').join(', ')}.
       For each recipe, identify which ingredients are "missing" (not in the priority or secondary lists).
       Ensure the cost per portion is an estimate: $ (budget), $$ (moderate), $$$ (premium).
       Ensure calories and protein are realistic estimates per serving.
@@ -746,9 +1168,10 @@ export default function App() {
                     dietaryTags: {
                       type: Type.ARRAY,
                       items: { type: Type.STRING }
-                    }
+                    },
+                    category: { type: Type.STRING, description: "One of: Breakfast, Lunch, Dinner, Snack, Dessert" }
                   },
-                  required: ["id", "title", "description", "totalTime", "costPerPortion", "caloriesPerPortion", "proteinPerPortion", "servings", "ingredients", "instructions"]
+                  required: ["id", "title", "description", "totalTime", "costPerPortion", "caloriesPerPortion", "proteinPerPortion", "servings", "ingredients", "instructions", "category"]
                 }
               }
             }
@@ -822,17 +1245,17 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCFB] text-[#2D2D2D] font-sans selection:bg-[#E6E0D4]">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans selection:bg-[var(--accent)]">
       {/* Header */}
-      <header className="border-b border-[#E6E0D4] bg-white/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-[var(--accent)] bg-[var(--bg)]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 bg-[#F5F5F0] p-1 rounded-xl mr-2">
+            <div className="flex items-center gap-1 bg-[var(--secondary)] p-1 rounded-xl mr-2">
               <button 
                 onClick={() => setLang('en')}
                 className={cn(
                   "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
-                  lang === 'en' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                  lang === 'en' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
                 )}
               >
                 EN
@@ -841,44 +1264,51 @@ export default function App() {
                 onClick={() => setLang('fr')}
                 className={cn(
                   "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
-                  lang === 'fr' ? "bg-white text-[#5A5A40] shadow-sm" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                  lang === 'fr' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
                 )}
               >
                 FR
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-[#5A5A40] rounded-full flex items-center justify-center text-white">
+              <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center text-[var(--bg)]">
                 <ChefHat size={24} />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-xl font-serif font-bold tracking-tight leading-none">{t('appName')}</h1>
+                <h1 className="text-xl font-serif font-bold tracking-tight leading-none text-[var(--primary)]">{t('appName')}</h1>
                 {t('appSubtitle') && (
                   <span className="text-[10px] text-[#8E8E8E] font-medium uppercase tracking-wider mt-0.5">{t('appSubtitle')}</span>
                 )}
               </div>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-6 text-sm font-medium text-[#5A5A40]">
+          <div className="hidden sm:flex items-center gap-6 text-sm font-medium text-[var(--primary)]">
             <button 
               onClick={() => setActiveTab('recipes')}
-              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'recipes' && "text-[#5A5A40] font-bold underline underline-offset-8")}
+              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'recipes' && "text-[var(--primary)] font-bold underline underline-offset-8")}
             >
               {t('recipes')}
             </button>
             <button 
               onClick={() => setActiveTab('pantry')}
-              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'pantry' && "text-[#5A5A40] font-bold underline underline-offset-8")}
+              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'pantry' && "text-[var(--primary)] font-bold underline underline-offset-8")}
             >
               <Box size={18} />
               {t('kitchenInventory')}
             </button>
             <button 
               onClick={() => setActiveTab('planner')}
-              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'planner' && "text-[#5A5A40] font-bold underline underline-offset-8")}
+              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'planner' && "text-[var(--primary)] font-bold underline underline-offset-8")}
             >
               <Calendar size={18} />
               {t('mealPlanner')}
+            </button>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className={cn("hover:opacity-70 transition-opacity flex items-center gap-2", activeTab === 'settings' && "text-[var(--primary)] font-bold underline underline-offset-8")}
+            >
+              <Settings size={18} />
+              {t('settings')}
             </button>
             <button 
               onClick={() => setShowShoppingList(true)}
@@ -887,7 +1317,7 @@ export default function App() {
               <ShoppingCart size={18} />
               {t('shoppingList')}
               {selectedRecipeIds.length > 0 && (
-                <span className="absolute -top-2 -right-4 bg-[#5A5A40] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-2 -right-4 bg-[var(--primary)] text-[var(--bg)] text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
                   {selectedRecipeIds.length}
                 </span>
               )}
@@ -898,18 +1328,18 @@ export default function App() {
           <div className="flex sm:hidden items-center gap-2">
             <button 
               onClick={() => setShowShoppingList(true)}
-              className="relative p-2 text-[#5A5A40] hover:bg-[#F5F5F0] rounded-full transition-colors"
+              className="relative p-2 text-[var(--primary)] hover:bg-[var(--secondary)] rounded-full transition-colors"
             >
               <ShoppingCart size={20} />
               {selectedRecipeIds.length > 0 && (
-                <span className="absolute top-1 right-1 bg-[#5A5A40] text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                <span className="absolute top-1 right-1 bg-[var(--primary)] text-[var(--bg)] text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center">
                   {selectedRecipeIds.length}
                 </span>
               )}
             </button>
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-[#5A5A40] hover:bg-[#F5F5F0] rounded-full transition-colors"
+              className="p-2 text-[var(--primary)] hover:bg-[var(--secondary)] rounded-full transition-colors"
             >
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -923,14 +1353,14 @@ export default function App() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="sm:hidden bg-white border-t border-[#E6E0D4] overflow-hidden"
+              className="sm:hidden bg-[var(--bg)] border-t border-[var(--accent)] overflow-hidden"
             >
               <div className="px-4 py-6 flex flex-col gap-2">
                 <button 
                   onClick={() => { setActiveTab('recipes'); setIsMobileMenuOpen(false); }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors",
-                    activeTab === 'recipes' ? "bg-[#F5F5F0] text-[#5A5A40]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
+                    activeTab === 'recipes' ? "bg-[var(--secondary)] text-[var(--primary)]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
                   )}
                 >
                   <Utensils size={20} />
@@ -940,7 +1370,7 @@ export default function App() {
                   onClick={() => { setActiveTab('pantry'); setIsMobileMenuOpen(false); }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors",
-                    activeTab === 'pantry' ? "bg-[#F5F5F0] text-[#5A5A40]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
+                    activeTab === 'pantry' ? "bg-[var(--secondary)] text-[var(--primary)]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
                   )}
                 >
                   <Box size={20} />
@@ -950,11 +1380,21 @@ export default function App() {
                   onClick={() => { setActiveTab('planner'); setIsMobileMenuOpen(false); }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors",
-                    activeTab === 'planner' ? "bg-[#F5F5F0] text-[#5A5A40]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
+                    activeTab === 'planner' ? "bg-[var(--secondary)] text-[var(--primary)]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
                   )}
                 >
                   <Calendar size={20} />
                   {t('mealPlanner')}
+                </button>
+                <button 
+                  onClick={() => { setActiveTab('settings'); setIsMobileMenuOpen(false); }}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors",
+                    activeTab === 'settings' ? "bg-[var(--secondary)] text-[var(--primary)]" : "text-[#8E8E8E] hover:bg-[#FDFCFB]"
+                  )}
+                >
+                  <Settings size={20} />
+                  {t('settings')}
                 </button>
               </div>
             </motion.div>
@@ -973,12 +1413,12 @@ export default function App() {
               className="flex flex-col gap-8"
             >
               {/* Sub-tabs for Recipes */}
-              <div className="flex gap-8 border-b border-[#E6E0D4]">
+              <div className="flex gap-8 border-b border-[var(--accent)]">
                 <button 
                   onClick={() => setRecipeSubTab('search')}
                   className={cn(
                     "pb-4 text-sm font-bold uppercase tracking-widest transition-all relative",
-                    recipeSubTab === 'search' ? "text-[#5A5A40]" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                    recipeSubTab === 'search' ? "text-[var(--primary)]" : "text-[#8E8E8E] hover:text-[var(--primary)]"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -986,14 +1426,14 @@ export default function App() {
                     {t('search')}
                   </div>
                   {recipeSubTab === 'search' && (
-                    <motion.div layoutId="recipeSubTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5A5A40]" />
+                    <motion.div layoutId="recipeSubTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
                   )}
                 </button>
                 <button 
                   onClick={() => setRecipeSubTab('favorites')}
                   className={cn(
                     "pb-4 text-sm font-bold uppercase tracking-widest transition-all relative",
-                    recipeSubTab === 'favorites' ? "text-[#5A5A40]" : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                    recipeSubTab === 'favorites' ? "text-[var(--primary)]" : "text-[#8E8E8E] hover:text-[var(--primary)]"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -1001,7 +1441,7 @@ export default function App() {
                     {t('favorites')}
                   </div>
                   {recipeSubTab === 'favorites' && (
-                    <motion.div layoutId="recipeSubTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5A5A40]" />
+                    <motion.div layoutId="recipeSubTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
                   )}
                 </button>
               </div>
@@ -1010,10 +1450,10 @@ export default function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                   {/* Left Column: Inputs */}
                   <div className="lg:col-span-4 space-y-8">
-                <section className="bg-white p-6 rounded-[32px] shadow-sm border border-[#E6E0D4]">
+                <section className="bg-[var(--bg)] p-6 rounded-[32px] shadow-sm border border-[var(--accent)]">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-serif font-semibold flex items-center gap-2">
-                      <Search size={18} className="text-[#5A5A40]" />
+                      <Search size={18} className="text-[var(--primary)]" />
                       {t('refineSearch')}
                     </h2>
                     {ingredients.length > 0 && (
@@ -1033,11 +1473,11 @@ export default function App() {
                       value={inputIngredient}
                       onChange={(e) => setInputIngredient(e.target.value)}
                       placeholder={t('searchPlaceholder')}
-                      className="w-full pl-4 pr-12 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] transition-all text-sm"
+                      className="w-full pl-4 pr-12 py-3 bg-[var(--secondary)] rounded-2xl border-none focus:ring-2 focus:ring-[var(--primary)] transition-all text-sm"
                     />
                     <button 
                       type="submit"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-[#5A5A40] text-white rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-[var(--primary)] text-[var(--bg)] rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
                     >
                       <Plus size={18} />
                     </button>
@@ -1052,7 +1492,7 @@ export default function App() {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.8 }}
                           key={ing}
-                          className="px-2.5 py-1 bg-[#E6E0D4] text-[#5A5A40] rounded-full text-[11px] font-medium flex items-center gap-1.5 group"
+                          className="px-2.5 py-1 bg-[var(--accent)] text-[var(--primary)] rounded-full text-[11px] font-medium flex items-center gap-1.5 group"
                         >
                           {ing}
                           <button onClick={() => removeIngredient(ing)} className="hover:text-red-500 transition-colors">
@@ -1077,8 +1517,8 @@ export default function App() {
                             className={cn(
                               "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
                               mealType === type 
-                                ? "bg-[#5A5A40] text-white border-[#5A5A40]" 
-                                : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
+                                ? "bg-[var(--primary)] text-[var(--bg)] border-[var(--primary)]" 
+                                : "bg-[var(--bg)] text-[var(--primary)] border-[#E6E0D4] hover:border-[var(--primary)]"
                             )}
                           >
                             {t(`mealTypes.${type}`)}
@@ -1089,17 +1529,17 @@ export default function App() {
 
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">{t('servingsLabel')}</h3>
-                      <div className="flex items-center gap-4 bg-[#F5F5F0] p-2 rounded-2xl border border-[#E6E0D4]">
+                      <div className="flex items-center gap-4 bg-[var(--secondary)] p-2 rounded-2xl border border-[var(--accent)]">
                         <button 
                           onClick={() => setServings(Math.max(1, servings - 1))}
-                          className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-[#5A5A40] shadow-sm hover:bg-[#E6E0D4] transition-colors"
+                          className="w-8 h-8 bg-[var(--secondary)] rounded-xl flex items-center justify-center text-[var(--primary)] shadow-sm hover:opacity-80 transition-colors"
                         >
                           <Minus size={16} />
                         </button>
-                        <span className="flex-1 text-center font-bold text-[#5A5A40]">{servings}</span>
+                        <span className="flex-1 text-center font-bold text-[var(--primary)]">{servings}</span>
                         <button 
                           onClick={() => setServings(Math.min(12, servings + 1))}
-                          className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-[#5A5A40] shadow-sm hover:bg-[#E6E0D4] transition-colors"
+                          className="w-8 h-8 bg-[var(--secondary)] rounded-xl flex items-center justify-center text-[var(--primary)] shadow-sm hover:opacity-80 transition-colors"
                         >
                           <Plus size={16} />
                         </button>
@@ -1116,8 +1556,8 @@ export default function App() {
                             className={cn(
                               "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
                               restrictions.includes(opt) 
-                                ? "bg-[#5A5A40] text-white border-[#5A5A40]" 
-                                : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
+                                ? "bg-[var(--primary)] text-[var(--bg)] border-[var(--primary)]" 
+                                : "bg-[var(--bg)] text-[var(--primary)] border-[#E6E0D4] hover:border-[var(--primary)]"
                             )}
                           >
                             {t(`dietaryOptions.${opt}`)}
@@ -1132,11 +1572,11 @@ export default function App() {
                           value={inputRestriction}
                           onChange={(e) => setInputRestriction(e.target.value)}
                           placeholder={t('addRestriction')}
-                          className="w-full pl-4 pr-12 py-2.5 bg-[#F5F5F0] rounded-xl border-none focus:ring-2 focus:ring-[#5A5A40] transition-all text-xs"
+                          className="w-full pl-4 pr-12 py-2.5 bg-[var(--secondary)] rounded-xl border-none focus:ring-2 focus:ring-[var(--primary)] transition-all text-xs"
                         />
                         <button 
                           type="submit"
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 bg-[#E6E0D4] text-[#5A5A40] rounded-lg flex items-center justify-center hover:bg-[#D6D0C4] transition-colors"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 bg-[var(--accent)] text-[var(--primary)] rounded-lg flex items-center justify-center hover:bg-[#D6D0C4] transition-colors"
                         >
                           <Plus size={16} />
                         </button>
@@ -1163,7 +1603,7 @@ export default function App() {
                       <select 
                         value={cuisine}
                         onChange={(e) => setCuisine(e.target.value)}
-                        className="w-full px-4 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] text-sm appearance-none cursor-pointer"
+                        className="w-full px-4 py-3 bg-[var(--secondary)] rounded-2xl border-none focus:ring-2 focus:ring-[var(--primary)] text-sm appearance-none cursor-pointer"
                       >
                         {CUISINES.map(c => (
                           <option key={c} value={c}>{t(`cuisines.${c}`)}</option>
@@ -1175,7 +1615,7 @@ export default function App() {
                   <button 
                     onClick={() => generateRecipes(false)}
                     disabled={loading || (ingredients.length === 0 && !hasInventory)}
-                    className="w-full mt-8 py-4 bg-[#5A5A40] text-white rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#4A4A35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#5A5A40]/20"
+                    className="w-full mt-8 py-4 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--primary)]/20"
                   >
                     {loading ? (
                       <>
@@ -1198,7 +1638,7 @@ export default function App() {
                       </div>
                       <button 
                         onClick={() => generateRecipes(false)}
-                        className="text-[10px] font-bold uppercase tracking-wider bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg self-start hover:bg-red-50 transition-colors"
+                        className="text-[10px] font-bold uppercase tracking-wider bg-[var(--bg)] border border-red-200 text-red-600 px-3 py-1.5 rounded-lg self-start hover:bg-red-50 transition-colors"
                       >
                         {lang === 'fr' ? 'Réessayer' : 'Try Again'}
                       </button>
@@ -1230,18 +1670,18 @@ export default function App() {
                               initial={{ opacity: 0, y: 20 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: idx * 0.1 }}
-                              className="bg-white rounded-[32px] overflow-hidden border border-[#E6E0D4] shadow-sm hover:shadow-md transition-shadow"
+                              className="bg-[var(--bg)] rounded-[32px] overflow-hidden border border-[var(--accent)] shadow-sm hover:shadow-md transition-shadow"
                             >
                               <div className="p-8">
                                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
                                   <div>
                                     <div className="flex flex-wrap gap-2 mb-3">
                                       {recipe.dietaryTags.map(tag => (
-                                        <span key={tag} className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                        <span key={tag} className="px-2 py-1 bg-[var(--secondary)] text-[var(--primary)] rounded-md text-[10px] font-bold uppercase tracking-wider">
                                           {tag}
                                         </span>
                                       ))}
-                                      <span className="px-2 py-1 bg-[#F5F5F0] text-[#5A5A40] rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                      <span className="px-2 py-1 bg-[var(--secondary)] text-[var(--primary)] rounded-md text-[10px] font-bold uppercase tracking-wider">
                                         {recipe.cuisine}
                                       </span>
                                     </div>
@@ -1251,14 +1691,14 @@ export default function App() {
                                         onClick={() => toggleFavorite(recipe)}
                                         className={cn(
                                           "p-2 rounded-full transition-all",
-                                          isFavorite(recipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:bg-[#F5F5F0]"
+                                          isFavorite(recipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:bg-[var(--secondary)]"
                                         )}
                                         title={isFavorite(recipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
                                       >
                                         <Heart size={20} className={cn(isFavorite(recipe.id) && "fill-current")} />
                                       </button>
                                     </div>
-                                    <p className="text-[#5A5A40] text-sm leading-relaxed max-w-2xl">{recipe.description}</p>
+                                    <p className="text-[var(--primary)] text-sm leading-relaxed max-w-2xl">{recipe.description}</p>
                                     
                                     <div className="flex flex-wrap gap-3 mt-4">
                                       <button 
@@ -1266,8 +1706,8 @@ export default function App() {
                                         className={cn(
                                           "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2",
                                           selectedRecipeIds.includes(recipe.id)
-                                            ? "bg-[#5A5A40] text-white"
-                                            : "bg-[#F5F5F0] text-[#5A5A40] hover:bg-[#E6E0D4]"
+                                            ? "bg-[var(--primary)] text-[var(--bg)]"
+                                            : "bg-[var(--secondary)] text-[var(--primary)] hover:bg-[var(--accent)]"
                                         )}
                                       >
                                         {selectedRecipeIds.includes(recipe.id) ? (
@@ -1289,7 +1729,7 @@ export default function App() {
                                             e.stopPropagation();
                                             setOpenPlannerId(openPlannerId === recipe.id ? null : recipe.id);
                                           }}
-                                          className="px-4 py-2 bg-[#F5F5F0] text-[#5A5A40] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#E6E0D4] transition-all flex items-center gap-2"
+                                          className="px-4 py-2 bg-[var(--secondary)] text-[var(--primary)] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[var(--accent)] transition-all flex items-center gap-2"
                                         >
                                           <Calendar size={14} />
                                           {t('saveToPlanner')}
@@ -1299,7 +1739,7 @@ export default function App() {
                                           "absolute top-full left-0 pt-1 z-10 min-w-[150px]",
                                           openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
                                         )}>
-                                          <div className="bg-white border border-[#E6E0D4] rounded-xl shadow-xl p-2">
+                                          <div className="bg-[var(--bg)] border border-[var(--accent)] rounded-xl shadow-xl p-2">
                                             {DAYS_OF_WEEK.map(day => (
                                               <button 
                                                 key={day}
@@ -1307,7 +1747,7 @@ export default function App() {
                                                   e.stopPropagation();
                                                   addToMealPlan(recipe, day);
                                                 }}
-                                                className="w-full text-left px-3 py-2 text-xs hover:bg-[#F5F5F0] rounded-lg transition-colors"
+                                                className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--secondary)] rounded-lg transition-colors"
                                               >
                                                 {t(`days.${day}`)}
                                               </button>
@@ -1319,36 +1759,36 @@ export default function App() {
                                   </div>
                                   
                                   <div className="grid grid-cols-2 md:flex md:flex-col gap-4 md:items-end">
-                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                    <div className="flex items-center gap-1.5 text-[var(--primary)]">
                                       <Clock size={16} />
                                       <span className="text-sm font-semibold">{recipe.totalTime}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                    <div className="flex items-center gap-1.5 text-[var(--primary)]">
                                       <Users size={16} />
                                       <span className="text-sm font-semibold">{recipe.servings} {t('servings')}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                    <div className="flex items-center gap-1.5 text-[var(--primary)]">
                                       <DollarSign size={16} />
                                       <span className="text-sm font-semibold">{recipe.costPerPortion}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                    <div className="flex items-center gap-1.5 text-[var(--primary)]">
                                       <Flame size={16} />
                                       <span className="text-sm font-semibold">{recipe.caloriesPerPortion} {t('calories')}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-[#5A5A40]">
+                                    <div className="flex items-center gap-1.5 text-[var(--primary)]">
                                       <Dumbbell size={16} />
                                       <span className="text-sm font-semibold">{recipe.proteinPerPortion} {t('protein')}</span>
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[#F5F5F0]">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[var(--secondary)]">
                                   <div>
                                     <div className="flex items-center justify-between mb-4">
                                       <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
                                       <button 
                                         onClick={() => copyMissingIngredients(recipe)}
-                                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] hover:opacity-70 transition-opacity"
+                                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] hover:opacity-70 transition-opacity"
                                       >
                                         {copiedId === recipe.id ? (
                                           <>
@@ -1371,7 +1811,7 @@ export default function App() {
                                             ing.isMissing ? "bg-orange-400" : "bg-green-400"
                                           )} />
                                           <span className={cn(
-                                            ing.isMissing ? "text-[#8E8E8E]" : "text-[#2D2D2D]"
+                                            ing.isMissing ? "text-[#8E8E8E]" : "text-[var(--text)]"
                                           )}>
                                             <span className="font-semibold">{ing.amount}</span> {ing.name}
                                             {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
@@ -1386,8 +1826,8 @@ export default function App() {
                                     <ol className="space-y-4">
                                       {recipe.instructions.map((step, i) => (
                                         <li key={i} className="flex gap-4 text-sm">
-                                          <span className="font-serif italic text-[#5A5A40] opacity-30 text-lg leading-none">{i + 1}</span>
-                                          <p className="leading-relaxed">{step}</p>
+                                          <span className="font-serif italic text-[var(--primary)] opacity-30 text-lg leading-none">{i + 1}</span>
+                                          <p className="leading-relaxed text-[var(--text)]">{step}</p>
                                         </li>
                                       ))}
                                     </ol>
@@ -1403,7 +1843,7 @@ export default function App() {
                           <button
                             onClick={() => generateRecipes(true)}
                             disabled={loadingMore}
-                            className="px-8 py-4 bg-white border border-[#E6E0D4] text-[#5A5A40] rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#F5F5F0] transition-all disabled:opacity-50 shadow-sm"
+                            className="px-8 py-4 bg-[var(--bg)] border border-[var(--accent)] text-[var(--primary)] rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[var(--secondary)] transition-all disabled:opacity-50 shadow-sm"
                           >
                             {loadingMore ? (
                               <>
@@ -1425,9 +1865,9 @@ export default function App() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="h-[60vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#E6E0D4] rounded-[48px]"
+                        className="h-[60vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[var(--accent)] rounded-[48px]"
                       >
-                        <div className="w-20 h-20 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] mb-6">
+                        <div className="w-20 h-20 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)] mb-6">
                           <Search size={32} />
                         </div>
                         <h2 className="text-2xl font-serif font-bold mb-3">{t('readyToCook')}</h2>
@@ -1447,193 +1887,224 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-8"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-2xl font-serif font-bold">{t('favorites')}</h2>
-                <span className="text-sm text-[#8E8E8E]">{favorites.length} {lang === 'fr' ? 'recettes enregistrées' : 'recipes saved'}</span>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2">
+                <div>
+                  <h2 className="text-2xl font-serif font-bold">{t('favorites')}</h2>
+                  <span className="text-sm text-[#8E8E8E]">{favorites.length} {lang === 'fr' ? 'recettes enregistrées' : 'recipes saved'}</span>
+                </div>
+                
+                <div className="flex bg-[var(--secondary)] p-1 rounded-2xl sm:rounded-full flex-wrap sm:flex-nowrap gap-1 justify-center sm:justify-start">
+                  {MEAL_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setFavoriteCategory(type)}
+                      className={cn(
+                        "px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap shrink-0",
+                        favoriteCategory === type 
+                          ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" 
+                          : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                      )}
+                    >
+                      {t(`mealTypes.${type}`)}
+                    </button>
+                  ))}
+                </div>
               </div>
               
-              {favorites.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
-                  {favorites.map((recipe, idx) => (
+              {filteredFavorites.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredFavorites.map((recipe, idx) => (
                     <motion.div 
                       key={recipe.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                      className="bg-white rounded-[32px] overflow-hidden border border-[#E6E0D4] shadow-sm hover:shadow-md transition-shadow"
+                      transition={{ delay: idx * 0.05 }}
+                      className="bg-[var(--bg)] rounded-3xl overflow-hidden border border-[var(--accent)] shadow-sm hover:shadow-md transition-shadow"
                     >
-                      <div className="p-8">
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
-                          <div>
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {recipe.dietaryTags.map(tag => (
-                                <span key={tag} className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                                  {tag}
-                                </span>
-                              ))}
-                              <span className="px-2 py-1 bg-[#F5F5F0] text-[#5A5A40] rounded-md text-[10px] font-bold uppercase tracking-wider">
-                                {recipe.cuisine}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 mb-2">
-                              <h3 className="text-2xl font-serif font-bold">{recipe.title}</h3>
-                              <button 
-                                onClick={() => toggleFavorite(recipe)}
-                                className={cn(
-                                  "p-2 rounded-full transition-all",
-                                  isFavorite(recipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:bg-[#F5F5F0]"
-                                )}
-                                title={isFavorite(recipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
-                              >
-                                <Heart size={20} className={cn(isFavorite(recipe.id) && "fill-current")} />
-                              </button>
-                            </div>
-                            <p className="text-[#5A5A40] text-sm leading-relaxed max-w-2xl">{recipe.description}</p>
-                            
-                            <div className="flex flex-wrap gap-3 mt-4">
-                              <button 
-                                onClick={() => toggleRecipeSelection(recipe.id)}
-                                className={cn(
-                                  "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2",
-                                  selectedRecipeIds.includes(recipe.id)
-                                    ? "bg-[#5A5A40] text-white"
-                                    : "bg-[#F5F5F0] text-[#5A5A40] hover:bg-[#E6E0D4]"
-                                )}
-                              >
-                                {selectedRecipeIds.includes(recipe.id) ? (
-                                  <>
-                                    <Check size={14} />
-                                    {lang === 'fr' ? 'Ajouté' : 'Added to List'}
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus size={14} />
-                                    {lang === 'fr' ? 'Ajouter à la liste' : 'Add to Shopping List'}
-                                  </>
-                                )}
-                              </button>
+                      <div className="p-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div 
+                            className="flex-1 cursor-pointer group"
+                            onClick={() => toggleExpandFavorite(recipe.id)}
+                          >
+                            <h3 className="text-lg font-serif font-bold group-hover:text-[var(--primary)] transition-colors">{recipe.title}</h3>
+                          </div>
 
-                              <div className="relative group/planner">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenPlannerId(openPlannerId === recipe.id ? null : recipe.id);
-                                  }}
-                                  className="px-4 py-2 bg-[#F5F5F0] text-[#5A5A40] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#E6E0D4] transition-all flex items-center gap-2"
-                                >
-                                  <Calendar size={14} />
-                                  {t('saveToPlanner')}
-                                </button>
-                                {/* Dropdown with bridge to prevent disappearing */}
-                                <div className={cn(
-                                  "absolute top-full left-0 pt-1 z-10 min-w-[150px]",
-                                  openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
-                                )}>
-                                  <div className="bg-white border border-[#E6E0D4] rounded-xl shadow-xl p-2">
-                                    {DAYS_OF_WEEK.map(day => (
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => toggleFavorite(recipe)}
+                              className={cn(
+                                "p-2 rounded-full transition-all",
+                                isFavorite(recipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:bg-[var(--secondary)]"
+                              )}
+                              title={isFavorite(recipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
+                            >
+                              <Heart size={18} className={cn(isFavorite(recipe.id) && "fill-current")} />
+                            </button>
+                            <button 
+                              onClick={() => toggleExpandFavorite(recipe.id)}
+                              className="p-2 text-[var(--primary)] hover:bg-[var(--secondary)] rounded-full transition-colors"
+                            >
+                              <motion.div
+                                animate={{ rotate: expandedFavoriteIds.includes(recipe.id) ? 180 : 0 }}
+                              >
+                                <ChevronRight size={20} className="rotate-90" />
+                              </motion.div>
+                            </button>
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {expandedFavoriteIds.includes(recipe.id) && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-6 mt-6 border-t border-[var(--secondary)]">
+                                <div className="flex flex-wrap items-center gap-4 mb-6 text-[#8E8E8E] text-[10px] font-bold uppercase tracking-wider">
+                                  <span className="px-2 py-0.5 bg-[var(--secondary)] text-[var(--primary)] rounded">
+                                    {recipe.category ? t(`mealTypes.${recipe.category}`) : t('mealTypes.Any')}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <Clock size={12} />
+                                    {recipe.totalTime}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Users size={12} />
+                                    {recipe.servings}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <DollarSign size={12} />
+                                    {recipe.costPerPortion}
+                                  </div>
+                                </div>
+
+                                <p className="text-[var(--primary)] text-sm leading-relaxed mb-6">{recipe.description}</p>
+                                
+                                <div className="flex flex-wrap gap-3 mb-8">
+                                  <button 
+                                    onClick={() => toggleRecipeSelection(recipe.id)}
+                                    className={cn(
+                                      "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2",
+                                      selectedRecipeIds.includes(recipe.id)
+                                        ? "bg-[var(--primary)] text-[var(--bg)]"
+                                        : "bg-[var(--secondary)] text-[var(--primary)] hover:bg-[var(--accent)]"
+                                    )}
+                                  >
+                                    {selectedRecipeIds.includes(recipe.id) ? (
+                                      <>
+                                        <Check size={14} />
+                                        {lang === 'fr' ? 'Ajouté' : 'Added to List'}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus size={14} />
+                                        {lang === 'fr' ? 'Ajouter à la liste' : 'Add to Shopping List'}
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <div className="relative group/planner">
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenPlannerId(openPlannerId === recipe.id ? null : recipe.id);
+                                      }}
+                                      className="px-4 py-2 bg-[var(--secondary)] text-[var(--primary)] rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[var(--accent)] transition-all flex items-center gap-2"
+                                    >
+                                      <Calendar size={14} />
+                                      {t('saveToPlanner')}
+                                    </button>
+                                    <div className={cn(
+                                      "absolute top-full left-0 pt-1 z-10 min-w-[150px]",
+                                      openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
+                                    )}>
+                                      <div className="bg-[var(--bg)] border border-[var(--accent)] rounded-xl shadow-xl p-2">
+                                        {DAYS_OF_WEEK.map(day => (
+                                          <button 
+                                            key={day}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              addToMealPlan(recipe, day);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--secondary)] rounded-lg transition-colors"
+                                          >
+                                            {t(`days.${day}`)}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[var(--secondary)]">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
                                       <button 
-                                        key={day}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          addToMealPlan(recipe, day);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs hover:bg-[#F5F5F0] rounded-lg transition-colors"
+                                        onClick={() => copyMissingIngredients(recipe)}
+                                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] hover:opacity-70 transition-opacity"
                                       >
-                                        {t(`days.${day}`)}
+                                        {copiedId === recipe.id ? (
+                                          <>
+                                            <Check size={12} className="text-green-600" />
+                                            {t('copied')}
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy size={12} />
+                                            {t('copyMissing')}
+                                          </>
+                                        )}
                                       </button>
-                                    ))}
+                                    </div>
+                                    <ul className="space-y-2">
+                                      {recipe.ingredients.map((ing, i) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm">
+                                          <span className={cn(
+                                            "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                                            ing.isMissing ? "bg-orange-400" : "bg-green-400"
+                                          )} />
+                                          <span className={cn(
+                                            ing.isMissing ? "text-[#8E8E8E]" : "text-[var(--text)]"
+                                          )}>
+                                            <span className="font-semibold">{ing.amount}</span> {ing.name}
+                                            {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h4>
+                                    <ol className="space-y-4">
+                                      {recipe.instructions.map((step, i) => (
+                                        <li key={i} className="flex gap-4 text-sm">
+                                          <span className="font-serif italic text-[var(--primary)] opacity-30 text-lg leading-none">{i + 1}</span>
+                                          <p className="leading-relaxed text-[var(--text)]">{step}</p>
+                                        </li>
+                                      ))}
+                                    </ol>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 md:flex md:flex-col gap-4 md:items-end">
-                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                              <Clock size={16} />
-                              <span className="text-sm font-semibold">{recipe.totalTime}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                              <Users size={16} />
-                              <span className="text-sm font-semibold">{recipe.servings} {t('servings')}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                              <DollarSign size={16} />
-                              <span className="text-sm font-semibold">{recipe.costPerPortion}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                              <Flame size={16} />
-                              <span className="text-sm font-semibold">{recipe.caloriesPerPortion} {t('calories')}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[#5A5A40]">
-                              <Dumbbell size={16} />
-                              <span className="text-sm font-semibold">{recipe.proteinPerPortion} {t('protein')}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-[#F5F5F0]">
-                          <div>
-                            <div className="flex items-center justify-between mb-4">
-                              <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{t('ingredients')}</h4>
-                              <button 
-                                onClick={() => copyMissingIngredients(recipe)}
-                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] hover:opacity-70 transition-opacity"
-                              >
-                                {copiedId === recipe.id ? (
-                                  <>
-                                    <Check size={12} className="text-green-600" />
-                                    {t('copied')}
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy size={12} />
-                                    {t('copyMissing')}
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                            <ul className="space-y-2">
-                              {recipe.ingredients.map((ing, i) => (
-                                <li key={i} className="flex items-start gap-2 text-sm">
-                                  <span className={cn(
-                                    "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                                    ing.isMissing ? "bg-orange-400" : "bg-green-400"
-                                  )} />
-                                  <span className={cn(
-                                    ing.isMissing ? "text-[#8E8E8E]" : "text-[#2D2D2D]"
-                                  )}>
-                                    <span className="font-semibold">{ing.amount}</span> {ing.name}
-                                    {ing.isMissing && <span className="ml-2 text-[10px] italic">({t('missingIngredients')})</span>}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-
-                          <div>
-                            <h4 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('instructions')}</h4>
-                            <ol className="space-y-4">
-                              {recipe.instructions.map((step, i) => (
-                                <li key={i} className="flex gap-4 text-sm">
-                                  <span className="font-serif italic text-[#5A5A40] opacity-30 text-lg leading-none">{i + 1}</span>
-                                  <p className="leading-relaxed">{step}</p>
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-                        </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </motion.div>
                   ))}
                 </div>
               ) : (
-                <div className="h-[40vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#E6E0D4] rounded-[48px]">
-                  <div className="w-16 h-16 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] mb-4">
+                <div className="h-[40vh] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[var(--accent)] rounded-[48px]">
+                  <div className="w-16 h-16 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)] mb-4">
                     <Heart size={24} />
                   </div>
                   <p className="text-[#8E8E8E] max-w-xs mx-auto leading-relaxed">
-                    {t('noFavorites')}
+                    {favoriteCategory === 'Any' ? t('noFavorites') : (lang === 'fr' ? `Aucun favori dans la catégorie ${t(`mealTypes.${favoriteCategory}`)}.` : `No favorites in the ${t(`mealTypes.${favoriteCategory}`)} category.`)}
                   </p>
                 </div>
               )}
@@ -1650,10 +2121,10 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="max-w-4xl mx-auto"
             >
-              <div className="bg-white p-5 sm:p-8 rounded-[32px] sm:rounded-[48px] border border-[#E6E0D4] shadow-sm">
+              <div className="bg-[var(--bg)] p-5 sm:p-8 rounded-[32px] sm:rounded-[48px] border border-[var(--accent)] shadow-sm">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
+                    <div className="w-12 h-12 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
                       <Box size={24} />
                     </div>
                     <div>
@@ -1662,7 +2133,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex bg-[#F5F5F0] p-1 rounded-full w-full lg:w-auto lg:min-w-[400px]">
+                  <div className="flex bg-[var(--secondary)] p-1 rounded-full w-full lg:w-auto lg:min-w-[400px]">
                     {(['pantry', 'refrigerator', 'freezer'] as InventoryCategory[]).map((tab) => (
                       <button
                         key={tab}
@@ -1670,8 +2141,8 @@ export default function App() {
                         className={cn(
                           "flex-1 px-2 sm:px-4 py-2 rounded-full text-[9px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap text-center",
                           activeInventoryTab === tab 
-                            ? "bg-white text-[#5A5A40] shadow-sm" 
-                            : "text-[#8E8E8E] hover:text-[#5A5A40]"
+                            ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" 
+                            : "text-[#8E8E8E] hover:text-[var(--primary)]"
                         )}
                       >
                         {t(tab)}
@@ -1680,62 +2151,144 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-12">
-                  {(activeInventoryTab === 'pantry' ? PANTRY_STAPLES : 
-                    activeInventoryTab === 'refrigerator' ? REFRIGERATOR_STAPLES : 
-                    FREEZER_STAPLES).map(staple => (
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex gap-2">
                     <button
-                      key={staple}
-                      onClick={() => togglePantryStaple(staple)}
-                      className={cn(
-                        "px-3 py-2 rounded-full border text-[11px] font-medium transition-all flex items-center justify-between group",
-                        inventory[activeInventoryTab].includes(staple)
-                          ? "bg-[#5A5A40] text-white border-[#5A5A40]"
-                          : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
-                      )}
+                      onClick={() => {
+                        const newExpanded: Record<string, boolean> = {};
+                        const currentCategories = activeInventoryTab === 'pantry' ? PANTRY_CATEGORIES : 
+                                                 activeInventoryTab === 'refrigerator' ? REFRIGERATOR_CATEGORIES : 
+                                                 FREEZER_CATEGORIES;
+                        currentCategories.forEach(cat => newExpanded[cat] = true);
+                        setExpandedCategories(prev => ({ ...prev, ...newExpanded }));
+                      }}
+                      className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] hover:underline"
                     >
-                      <span className="truncate pr-1">{t(`staples.${staple}`)}</span>
-                      {inventory[activeInventoryTab].includes(staple) ? (
-                        <Check size={12} className="shrink-0" />
-                      ) : (
-                        <Plus size={12} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      )}
+                      {lang === 'fr' ? 'Tout développer' : 'Expand All'}
                     </button>
-                  ))}
-
-                  {customInventory[activeInventoryTab].map(item => (
-                    <div
-                      key={item}
-                      className={cn(
-                        "px-3 py-2 rounded-full border text-[11px] font-medium transition-all flex items-center justify-between group",
-                        inventory[activeInventoryTab].includes(item)
-                          ? "bg-[#5A5A40] text-white border-[#5A5A40]"
-                          : "bg-white text-[#5A5A40] border-[#E6E0D4] hover:border-[#5A5A40]"
-                      )}
+                    <span className="text-[var(--accent)]">|</span>
+                    <button
+                      onClick={() => {
+                        const newExpanded: Record<string, boolean> = {};
+                        const currentCategories = activeInventoryTab === 'pantry' ? PANTRY_CATEGORIES : 
+                                                 activeInventoryTab === 'refrigerator' ? REFRIGERATOR_CATEGORIES : 
+                                                 FREEZER_CATEGORIES;
+                        currentCategories.forEach(cat => newExpanded[cat] = false);
+                        setExpandedCategories(prev => ({ ...prev, ...newExpanded }));
+                      }}
+                      className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] hover:underline"
                     >
-                      <button 
-                        onClick={() => togglePantryStaple(item)}
-                        className="flex-1 text-left truncate pr-1"
-                      >
-                        {item}
-                      </button>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {inventory[activeInventoryTab].includes(item) && <Check size={12} />}
+                      {lang === 'fr' ? 'Tout réduire' : 'Close All'}
+                    </button>
+                  </div>
+                  <button
+                    onClick={addAllUnselectedToShoppingList}
+                    className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] hover:opacity-70 transition-opacity bg-[var(--secondary)] px-4 py-2 rounded-full"
+                  >
+                    <ShoppingCart size={14} />
+                    {lang === 'fr' ? 'Ajouter tout le manquant à la liste' : 'Add all unselected to list'}
+                  </button>
+                </div>
+
+                <div className="space-y-6 mb-12">
+                  {(activeInventoryTab === 'pantry' ? PANTRY_CATEGORIES : 
+                    activeInventoryTab === 'refrigerator' ? REFRIGERATOR_CATEGORIES : 
+                    FREEZER_CATEGORIES).map(category => {
+                    const allItems = [
+                      ...(activeInventoryTab === 'pantry' ? PANTRY_STAPLES : 
+                        activeInventoryTab === 'refrigerator' ? REFRIGERATOR_STAPLES : 
+                        FREEZER_STAPLES).filter(s => !removedStaples[activeInventoryTab].includes(s)),
+                      ...customInventory[activeInventoryTab]
+                    ];
+                    
+                    const itemsInCategory = allItems.filter(item => {
+                      const itemCat = STAPLE_CATEGORY_MAP[item] || customItemCategories[item] || 'Others';
+                      return itemCat === category;
+                    });
+
+                    if (itemsInCategory.length === 0) return null;
+
+                    return (
+                      <div key={category} className="space-y-3">
                         <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeCustomInventoryItem(item, activeInventoryTab);
-                          }}
-                          className={cn(
-                            "hover:text-red-500 transition-colors p-0.5 rounded-full hover:bg-black/5",
-                            inventory[activeInventoryTab].includes(item) ? "hover:bg-white/20" : ""
-                          )}
+                          onClick={() => setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }))}
+                          className="flex items-center gap-2 w-full text-left group"
                         >
-                          <X size={12} />
+                          <div className="flex items-center gap-2 px-3 py-1 bg-[var(--secondary)] rounded-full">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E]">{t(`categories.${category}`)}</span>
+                            <ChevronDown 
+                              size={12} 
+                              className={cn(
+                                "text-[#8E8E8E] transition-transform",
+                                !expandedCategories[category] && "-rotate-90"
+                              )} 
+                            />
+                          </div>
+                          <div className="flex-1 h-[1px] bg-[var(--secondary)]" />
                         </button>
+
+                        <AnimatePresence>
+                          {expandedCategories[category] && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 py-2">
+                                {itemsInCategory.map(item => (
+                                  <div
+                                    key={item}
+                                    className={cn(
+                                      "px-3 py-2 rounded-full border text-[11px] font-medium transition-all flex items-center justify-between group",
+                                      inventory[activeInventoryTab].includes(item)
+                                        ? "bg-[var(--primary)] text-[var(--bg)] border-[var(--primary)]"
+                                        : "bg-[var(--bg)] text-[var(--primary)] border-[var(--accent)] hover:border-[var(--primary)]"
+                                    )}
+                                  >
+                                    <button 
+                                      onClick={() => togglePantryStaple(item)}
+                                      className="flex-1 text-left truncate pr-1"
+                                    >
+                                      {PANTRY_STAPLES.includes(item) || REFRIGERATOR_STAPLES.includes(item) || FREEZER_STAPLES.includes(item) ? t(`staples.${item}`) : item}
+                                    </button>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {inventory[activeInventoryTab].includes(item) ? (
+                                        <Check size={12} />
+                                      ) : (
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            addToManualShoppingList(item);
+                                          }}
+                                          className="p-1 hover:bg-black/5 rounded-full transition-colors"
+                                          title={lang === 'fr' ? 'Ajouter à la liste de courses' : 'Add to shopping list'}
+                                        >
+                                          <ShoppingCart size={12} />
+                                        </button>
+                                      )}
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeInventoryItem(item, activeInventoryTab);
+                                        }}
+                                        className={cn(
+                                          "hover:text-red-500 transition-colors p-0.5 rounded-full hover:bg-black/5",
+                                          inventory[activeInventoryTab].includes(item) ? "hover:bg-white/20" : ""
+                                        )}
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="mb-12">
@@ -1743,25 +2296,52 @@ export default function App() {
                     {t('addTo')} {t(activeInventoryTab)}
                   </h3>
                   <form onSubmit={addCustomPantryStaple} className="flex flex-col gap-3 max-w-md">
-                    <input 
-                      type="text"
-                      value={inputPantryStaple}
-                      onChange={(e) => setInputPantryStaple(e.target.value)}
-                      placeholder={`e.g. ${activeInventoryTab === 'freezer' ? (lang === 'fr' ? 'Petits pois' : 'Frozen Peas') : activeInventoryTab === 'refrigerator' ? (lang === 'fr' ? 'Yaourt grec' : 'Greek Yogurt') : (lang === 'fr' ? 'Miel' : 'Honey')}`}
-                      className="w-full px-4 py-3 bg-[#F5F5F0] rounded-2xl border-none focus:ring-2 focus:ring-[#5A5A40] text-sm"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <input 
+                          type="text"
+                          list="ingredients-suggestions"
+                          value={inputPantryStaple}
+                          onChange={(e) => {
+                            setInputPantryStaple(e.target.value);
+                            if (inventoryError) setInventoryError(null);
+                          }}
+                          placeholder={`e.g. ${activeInventoryTab === 'freezer' ? (lang === 'fr' ? 'Petits pois' : 'Frozen Peas') : activeInventoryTab === 'refrigerator' ? (lang === 'fr' ? 'Yaourt grec' : 'Greek Yogurt') : (lang === 'fr' ? 'Miel' : 'Honey')}`}
+                          className="w-full px-4 py-3 bg-[var(--secondary)] rounded-2xl border-none focus:ring-2 focus:ring-[var(--primary)] text-sm"
+                        />
+                        <datalist id="ingredients-suggestions">
+                          {COMMON_INGREDIENTS.map(ing => (
+                            <option key={ing} value={ing} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value as ItemCategory)}
+                        className="px-4 py-3 bg-[var(--secondary)] rounded-2xl border-none focus:ring-2 focus:ring-[var(--primary)] text-sm appearance-none cursor-pointer"
+                      >
+                        {(activeInventoryTab === 'pantry' ? PANTRY_CATEGORIES : 
+                          activeInventoryTab === 'refrigerator' ? REFRIGERATOR_CATEGORIES : 
+                          FREEZER_CATEGORIES).map(cat => (
+                          <option key={cat} value={cat}>{t(`categories.${cat}`)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {inventoryError && (
+                      <p className="text-red-500 text-xs font-medium ml-1">{inventoryError}</p>
+                    )}
                     <button 
                       type="submit"
-                      className="w-full sm:w-auto px-6 py-3 bg-[#5A5A40] text-white rounded-2xl font-semibold hover:bg-[#4A4A35] transition-colors"
+                      className="w-full sm:w-auto px-6 py-3 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-semibold hover:opacity-90 transition-colors"
                     >
                       {t('add')}
                     </button>
                   </form>
                 </div>
 
-                <div className="mt-12 p-6 bg-[#F5F5F0] rounded-3xl">
+                <div className="mt-12 p-6 bg-[var(--secondary)] rounded-3xl">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{lang === 'fr' ? 'Gestion de l\'inventaire' : 'Inventory Management'}</h3>
-                  <p className="text-sm text-[#5A5A40] leading-relaxed">
+                  <p className="text-sm text-[var(--primary)] leading-relaxed">
                     {lang === 'fr' 
                       ? `Gardez une trace de ce qu'il y a dans votre ${t(activeInventoryTab)}. Le Chef Virtuel utilisera ces informations pour suggérer des recettes utilisant votre stock existant, vous faisant économiser de l'argent et réduisant le gaspillage alimentaire.`
                       : `Keep track of what's in your ${activeInventoryTab}. The Meal Maker will use this information to suggest recipes that utilize your existing stock, saving you money and reducing food waste.`}
@@ -1781,14 +2361,14 @@ export default function App() {
             >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
+                    <div className="w-12 h-12 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
                       <Calendar size={24} />
                     </div>
                     <h2 className="text-2xl font-serif font-bold">{t('weeklyPlanner')}</h2>
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <form onSubmit={addNoteToPlanner} className="flex items-center gap-2 bg-[#F5F5F0] p-1.5 rounded-2xl border border-[#E6E0D4]">
+                    <form onSubmit={addNoteToPlanner} className="flex items-center gap-2 bg-[var(--secondary)] p-1.5 rounded-2xl border border-[var(--accent)]">
                       <input 
                         type="text"
                         value={inputNote}
@@ -1798,7 +2378,7 @@ export default function App() {
                       />
                       <button 
                         type="submit"
-                        className="bg-[#5A5A40] text-white p-1.5 rounded-xl hover:scale-105 transition-transform"
+                        className="bg-[var(--primary)] text-[var(--bg)] p-1.5 rounded-xl hover:scale-105 transition-transform"
                       >
                         <Plus size={16} />
                       </button>
@@ -1844,7 +2424,7 @@ export default function App() {
                 }}>
                   {activeId && activeItem ? (
                     <div className={cn(
-                      "p-3 rounded-2xl shadow-2xl border-2 border-[#5A5A40] scale-105 rotate-2",
+                      "p-3 rounded-2xl shadow-2xl border-2 border-[var(--primary)] scale-105 rotate-2",
                       'type' in activeItem && activeItem.type === 'note' ? "bg-orange-50" : "bg-white"
                     )}>
                       <h4 className="text-xs font-bold leading-tight pr-4">
@@ -1860,6 +2440,68 @@ export default function App() {
                   ) : null}
                 </DragOverlay>
               </DndContext>
+            </motion.div>
+          )}
+          {activeTab === 'settings' && (
+            <motion.div 
+              key="settings-tab"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="max-w-2xl mx-auto"
+            >
+              <div className="bg-[var(--bg)] p-8 rounded-[48px] border border-[var(--accent)] shadow-sm">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-12 h-12 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
+                    <Settings size={24} />
+                  </div>
+                  <h2 className="text-2xl font-serif font-bold">{t('settings')}</h2>
+                </div>
+
+                <div className="space-y-8">
+                  <section>
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-6 flex items-center gap-2">
+                      <Box size={18} />
+                      {t('colorSchemes')}
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                      {COLOR_SCHEMES.map((scheme) => (
+                        <button
+                          key={scheme.id}
+                          onClick={() => setThemeColors(scheme)}
+                          className={cn(
+                            "group relative flex flex-col items-center gap-2 p-2 rounded-2xl border-2 transition-all",
+                            themeColors.primary === scheme.primary && themeColors.bg === scheme.bg
+                              ? "border-[var(--primary)] bg-[var(--secondary)]"
+                              : "border-[var(--accent)] hover:border-[var(--primary)]"
+                          )}
+                        >
+                          <div className="w-full aspect-square rounded-xl overflow-hidden shadow-sm border border-black/5 flex flex-col">
+                            <div className="flex-1" style={{ backgroundColor: scheme.bg }}>
+                              <div className="p-1">
+                                <div className="w-1/2 h-1 rounded-full" style={{ backgroundColor: scheme.primary }} />
+                              </div>
+                            </div>
+                            <div className="h-1/3 flex">
+                              <div className="flex-1" style={{ backgroundColor: scheme.secondary }} />
+                              <div className="flex-1" style={{ backgroundColor: scheme.accent }} />
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">
+                            {t(`schemes.${scheme.id}`)}
+                          </span>
+                          {themeColors.primary === scheme.primary && themeColors.bg === scheme.bg && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--primary)] text-[var(--bg)] rounded-full flex items-center justify-center shadow-sm">
+                              <Check size={12} />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1880,16 +2522,16 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="fixed inset-4 md:inset-20 bg-white z-[110] rounded-[48px] shadow-2xl overflow-hidden flex flex-col"
+              className="fixed inset-4 md:inset-20 bg-[var(--bg)] z-[110] rounded-[48px] shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-6 md:p-10 border-b border-[#F5F5F0] flex items-center justify-between bg-white sticky top-0">
+              <div className="p-6 md:p-10 border-b border-[var(--secondary)] flex items-center justify-between bg-[var(--bg)] sticky top-0">
                 <div className="flex items-center gap-4">
                   <h2 className="text-2xl md:text-3xl font-serif font-bold">{viewingPlannerRecipe.title}</h2>
                   <button
                     onClick={() => toggleFavorite(viewingPlannerRecipe)}
                     className={cn(
                       "p-2 rounded-full transition-all hover:scale-110 active:scale-95",
-                      isFavorite(viewingPlannerRecipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:text-red-500 bg-[#F5F5F0]"
+                      isFavorite(viewingPlannerRecipe.id) ? "text-red-500 bg-red-50" : "text-[#8E8E8E] hover:text-red-500 bg-[var(--secondary)]"
                     )}
                     title={isFavorite(viewingPlannerRecipe.id) ? t('removeFromFavorites') : t('addToFavorites')}
                   >
@@ -1898,7 +2540,7 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setViewingPlannerRecipe(null)}
-                  className="w-10 h-10 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40] hover:bg-[#E6E0D4] transition-colors"
+                  className="w-10 h-10 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)] hover:bg-[var(--accent)] transition-colors"
                 >
                   <X size={24} />
                 </button>
@@ -1907,7 +2549,7 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-6 md:p-10">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                   <div className="lg:col-span-1 space-y-8">
-                    <div className="bg-[#F5F5F0] p-6 rounded-3xl space-y-4">
+                    <div className="bg-[var(--secondary)] p-6 rounded-3xl space-y-4">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-[#8E8E8E] font-medium">{lang === 'fr' ? 'Temps' : 'Time'}</span>
                         <span className="font-bold">{viewingPlannerRecipe.totalTime}</span>
@@ -1931,7 +2573,7 @@ export default function App() {
                       <ul className="space-y-3">
                         {viewingPlannerRecipe.ingredients.map((ing, i) => (
                           <li key={i} className="flex items-start gap-3 text-sm">
-                            <span className="w-1.5 h-1.5 rounded-full mt-1.5 bg-[#5A5A40] shrink-0" />
+                            <span className="w-1.5 h-1.5 rounded-full mt-1.5 bg-[var(--primary)] shrink-0" />
                             <span><span className="font-bold">{ing.amount}</span> {ing.name}</span>
                           </li>
                         ))}
@@ -1945,8 +2587,8 @@ export default function App() {
                       <ol className="space-y-6">
                         {viewingPlannerRecipe.instructions.map((step, i) => (
                           <li key={i} className="flex gap-6">
-                            <span className="font-serif italic text-4xl text-[#5A5A40] opacity-20 leading-none shrink-0">{i + 1}</span>
-                            <p className="text-base leading-relaxed text-[#2D2D2D]">{step}</p>
+                            <span className="font-serif italic text-4xl text-[var(--primary)] opacity-20 leading-none shrink-0">{i + 1}</span>
+                            <p className="text-base leading-relaxed text-[var(--text)]">{step}</p>
                           </li>
                         ))}
                       </ol>
@@ -1975,11 +2617,11 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white z-[70] shadow-2xl border-l border-[#E6E0D4] flex flex-col"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-[var(--bg)] z-[70] shadow-2xl border-l border-[var(--accent)] flex flex-col"
             >
-              <div className="p-6 border-b border-[#E6E0D4] flex items-center justify-between">
+              <div className="p-6 border-b border-[var(--accent)] flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#5A5A40]">
+                  <div className="w-10 h-10 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
                     <ShoppingCart size={20} />
                   </div>
                   <div>
@@ -1989,98 +2631,124 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setShowShoppingList(false)}
-                  className="w-8 h-8 rounded-full hover:bg-[#F5F5F0] flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-full hover:bg-[var(--secondary)] flex items-center justify-center transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                {selectedRecipes.length > 0 ? (
+                {manualShoppingList.length > 0 && (
+                  <section>
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{lang === 'fr' ? 'Articles manuels' : 'Manual Items'}</h3>
+                    <div className="bg-[var(--bg)] border border-[var(--accent)] rounded-2xl divide-y divide-[var(--secondary)]">
+                      {manualShoppingList.map(item => (
+                        <div key={item} className="p-4 flex items-center justify-between group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded border border-[var(--accent)] shrink-0" />
+                            <span className="text-sm font-medium">{item}</span>
+                          </div>
+                          <button 
+                            onClick={() => removeFromManualShoppingList(item)}
+                            className="text-[#8E8E8E] hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {selectedRecipes.length > 0 || manualShoppingList.length > 0 ? (
                   <>
-                    <section>
-                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('recipesInPlan')}</h3>
-                      <div className="space-y-3">
-                        {selectedRecipes.map(recipe => (
-                          <div key={recipe.id} className="flex items-center justify-between p-3 bg-[#F5F5F0] rounded-2xl group">
-                            <span className="text-sm font-medium truncate pr-4">{recipe.title}</span>
+                    {selectedRecipes.length > 0 && (
+                      <>
+                        <section>
+                          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">{t('recipesInPlan')}</h3>
+                          <div className="space-y-3">
+                            {selectedRecipes.map(recipe => (
+                              <div key={recipe.id} className="flex items-center justify-between p-3 bg-[var(--secondary)] rounded-2xl group">
+                                <span className="text-sm font-medium truncate pr-4">{recipe.title}</span>
+                                <button 
+                                  onClick={() => toggleRecipeSelection(recipe.id)}
+                                  className="text-[#8E8E8E] hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+
+                        <section>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E]">{t('missingIngredients')}</h3>
                             <button 
-                              onClick={() => toggleRecipeSelection(recipe.id)}
-                              className="text-[#8E8E8E] hover:text-red-500 transition-colors"
+                              onClick={copyFullShoppingList}
+                              className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] flex items-center gap-1.5 hover:opacity-70"
                             >
-                              <Trash2 size={16} />
+                              {copiedId === 'full-list' ? (
+                                <>
+                                  <Check size={12} className="text-green-600" />
+                                  {t('copied')}
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={12} />
+                                  {t('copyFullList')}
+                                </>
+                              )}
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E]">{t('missingIngredients')}</h3>
-                        <button 
-                          onClick={copyFullShoppingList}
-                          className="text-[10px] font-bold uppercase tracking-wider text-[#5A5A40] flex items-center gap-1.5 hover:opacity-70"
-                        >
-                          {copiedId === 'full-list' ? (
-                            <>
-                              <Check size={12} className="text-green-600" />
-                              {t('copied')}
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={12} />
-                              {t('copyFullList')}
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <div className="bg-white border border-[#E6E0D4] rounded-2xl divide-y divide-[#F5F5F0]">
-                        {aggregateMissingIngredients().length > 0 ? (
-                          aggregateMissingIngredients().map((item, i) => (
-                            <div key={i} className="p-4 flex items-center gap-3">
-                              <div className="w-4 h-4 rounded border border-[#E6E0D4] shrink-0" />
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium capitalize">{item.name}</span>
-                                <span className="text-xs text-[#8E8E8E]">{item.amount}</span>
+                          <div className="bg-[var(--bg)] border border-[var(--accent)] rounded-2xl divide-y divide-[var(--secondary)]">
+                            {aggregateMissingIngredients().length > 0 ? (
+                              aggregateMissingIngredients().map((item, i) => (
+                                <div key={i} className="p-4 flex items-center gap-3">
+                                  <div className="w-4 h-4 rounded border border-[var(--accent)] shrink-0" />
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium capitalize">{item.name}</span>
+                                    <span className="text-xs text-[#8E8E8E]">{item.amount}</span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-8 text-center text-sm text-[#8E8E8E] italic">
+                                {lang === 'fr' ? 'Aucun ingrédient manquant ! Vous avez tout ce qu\'il faut.' : 'No missing ingredients! You have everything you need.'}
                               </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="p-8 text-center text-sm text-[#8E8E8E] italic">
-                            {lang === 'fr' ? 'Aucun ingrédient manquant ! Vous avez tout ce qu\'il faut.' : 'No missing ingredients! You have everything you need.'}
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </section>
+                        </section>
+                      </>
+                    )}
                   </>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
-                    <div className="w-16 h-16 bg-[#F5F5F0] rounded-full flex items-center justify-center text-[#8E8E8E]">
+                    <div className="w-16 h-16 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[#8E8E8E]">
                       <Utensils size={24} />
                     </div>
                     <div>
                       <h3 className="font-serif font-bold">{lang === 'fr' ? 'Votre liste est vide' : 'Your list is empty'}</h3>
                       <p className="text-sm text-[#8E8E8E] max-w-[200px] mx-auto mt-2">
-                        {lang === 'fr' ? 'Ajoutez des recettes pour générer une liste de courses.' : 'Add recipes from your search results to generate a shopping list.'}
+                        {lang === 'fr' ? 'Ajoutez des recettes ou des articles manuels pour générer une liste de courses.' : 'Add recipes or manual items to generate a shopping list.'}
                       </p>
                     </div>
                   </div>
                 )}
               </div>
 
-              {selectedRecipes.length > 0 && (
-                <div className="p-6 border-t border-[#E6E0D4] bg-[#FDFCFB] flex flex-col gap-3">
+              { (selectedRecipes.length > 0 || manualShoppingList.length > 0) && (
+                <div className="p-6 border-t border-[var(--accent)] bg-[#FDFCFB] flex flex-col gap-3">
                   <button 
                     onClick={copyFullShoppingList}
-                    className="w-full py-4 bg-[#5A5A40] text-white rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#4A4A35] transition-colors shadow-lg shadow-[#5A5A40]/20"
+                    className="w-full py-4 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-[var(--primary)]/20"
                   >
                     <Copy size={18} />
                     {t('copyFullList')}
                   </button>
                   <button 
                     onClick={() => setShowShoppingList(false)}
-                    className="w-full py-3 text-[#5A5A40] font-medium hover:bg-[#F5F5F0] rounded-xl transition-colors"
+                    className="w-full py-3 text-[var(--primary)] font-medium hover:bg-[var(--secondary)] rounded-xl transition-colors"
                   >
                     {t('close')}
                   </button>
@@ -2099,7 +2767,7 @@ export default function App() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             onClick={scrollToTop}
-            className="fixed bottom-8 right-8 z-[90] bg-[#5A5A40] text-white px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 hover:bg-[#4A4A35] transition-colors group"
+            className="fixed bottom-8 right-8 z-[90] bg-[var(--primary)] text-[var(--bg)] px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 hover:opacity-90 transition-all group"
           >
             <ArrowUp size={18} className="group-hover:-translate-y-1 transition-transform" />
             <span className="text-xs font-bold uppercase tracking-wider pr-1">{t('backToTop')}</span>
@@ -2108,16 +2776,33 @@ export default function App() {
       </AnimatePresence>
 
       {/* Footer */}
-      <footer className="mt-20 border-t border-[#E6E0D4] py-12 bg-white">
+      <footer className="mt-20 border-t border-[var(--accent)] py-12 bg-[var(--bg)]">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <p className="text-sm text-[#8E8E8E] mb-4">© 2026 {t('appName')}. {lang === 'fr' ? 'Propulsé par Gemini AI.' : 'Powered by Gemini AI.'}</p>
-          <div className="flex justify-center gap-6 text-[#5A5A40] font-medium text-xs uppercase tracking-widest">
+          <div className="flex justify-center gap-6 text-[var(--primary)] font-medium text-xs uppercase tracking-widest">
             <a href="#" className="hover:opacity-70 transition-opacity">{lang === 'fr' ? 'Confidentialité' : 'Privacy'}</a>
             <a href="#" className="hover:opacity-70 transition-opacity">{lang === 'fr' ? 'Conditions' : 'Terms'}</a>
             <a href="#" className="hover:opacity-70 transition-opacity">{lang === 'fr' ? 'Support' : 'Support'}</a>
           </div>
         </div>
       </footer>
+
+      {/* Notification Bubble */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            className="fixed bottom-24 left-1/2 z-[200] bg-[var(--primary)] text-[var(--bg)] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 min-w-[200px] justify-center"
+          >
+            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+              <Check size={14} />
+            </div>
+            <span className="text-sm font-bold tracking-wide">{notification.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
