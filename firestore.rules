@@ -135,7 +135,7 @@ service cloud.firestore {
     }
 
     match /households/{householdId} {
-      allow read: if isAuthenticated() && (isHouseholdMember(householdId) || isAdmin());
+      allow read: if isAuthenticated();
       
       allow create: if isAuthenticated() && 
                       isValidHousehold(request.resource.data) && 

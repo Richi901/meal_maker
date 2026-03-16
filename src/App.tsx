@@ -26,6 +26,7 @@ import {
   GripVertical,
   Menu,
   Heart,
+  Edit2,
   Settings,
   Moon,
   Sun
@@ -284,13 +285,14 @@ const STAPLE_CATEGORY_MAP: Record<string, ItemCategory> = {
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
-function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onToggleFavorite }: { 
+function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onToggleFavorite, onEditNote }: { 
   item: MealItem, 
   day: string, 
   onRecipeClick: (r: Recipe) => void, 
   onRemove: (id: string, day: string) => void,
   isFavorite?: (id: string) => boolean,
-  onToggleFavorite?: (r: Recipe) => void
+  onToggleFavorite?: (r: Recipe) => void,
+  onEditNote?: (id: string, dayKey: string, text: string) => void
 }) {
   const isNote = 'type' in item && item.type === 'note';
   const {
@@ -324,20 +326,33 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onT
       <div className="pl-8">
         <div className="flex items-start justify-between gap-2">
           <h4 className="text-xs font-bold leading-tight pr-4">{isNote ? (item as Note).text : (item as Recipe).title}</h4>
-          {!isNote && isFavorite && onToggleFavorite && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite(item as Recipe);
-              }}
-              className={cn(
-                "shrink-0 transition-colors",
-                isFavorite(item.id) ? "text-red-500" : "text-[#8E8E8E] hover:text-red-500"
-              )}
-            >
-              <Heart size={12} className={cn(isFavorite(item.id) && "fill-current")} />
-            </button>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            {isNote && onEditNote && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditNote(item.id, day, (item as Note).text);
+                }}
+                className="text-[#8E8E8E] hover:text-[var(--primary)] transition-colors p-1"
+              >
+                <Edit2 size={12} />
+              </button>
+            )}
+            {!isNote && isFavorite && onToggleFavorite && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(item as Recipe);
+                }}
+                className={cn(
+                  "shrink-0 transition-colors p-1",
+                  isFavorite(item.id) ? "text-red-500" : "text-[#8E8E8E] hover:text-red-500"
+                )}
+              >
+                <Heart size={12} className={cn(isFavorite(item.id) && "fill-current")} />
+              </button>
+            )}
+          </div>
         </div>
         {!isNote && (
           <div className="flex items-center gap-2 mt-2 opacity-60">
@@ -365,14 +380,15 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onT
   );
 }
 
-function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite, onToggleFavorite }: { 
+function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite, onToggleFavorite, onEditNote }: { 
   day: string, 
   dayKey: string,
   items: MealItem[], 
   onRecipeClick: (r: Recipe) => void,
   onRemove: (id: string, dayKey: string) => void,
   isFavorite: (id: string) => boolean,
-  onToggleFavorite: (r: Recipe) => void
+  onToggleFavorite: (r: Recipe) => void,
+  onEditNote: (id: string, dayKey: string, text: string) => void
 }) {
   const { setNodeRef, isOver } = useSortable({ id: dayKey });
 
@@ -382,7 +398,7 @@ function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite,
       <div 
         ref={setNodeRef}
         className={cn(
-          "flex-1 min-h-[200px] bg-[var(--bg)] border rounded-3xl p-3 space-y-3 transition-colors",
+          "flex-1 min-h-[120px] md:min-h-[200px] bg-[var(--bg)] border rounded-3xl p-3 space-y-3 transition-colors",
           isOver ? "bg-[var(--secondary)] border-[var(--primary)]" : "border-[var(--accent)]"
         )}
       >
@@ -397,6 +413,7 @@ function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite,
                 onRemove={onRemove} 
                 isFavorite={isFavorite}
                 onToggleFavorite={onToggleFavorite}
+                onEditNote={onEditNote}
               />
             ))
           ) : (
@@ -632,6 +649,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : {};
   });
   const [viewingPlannerRecipe, setViewingPlannerRecipe] = useState<Recipe | null>(null);
+  const [editingNote, setEditingNote] = useState<{ id: string, dayKey: string, text: string } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<MealItem | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -705,7 +723,7 @@ export default function App() {
       if (doc.exists()) {
         setHousehold(doc.data());
       }
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, `households/${userProfile.householdId}`));
 
     const unsubInventory = onSnapshot(doc(db, 'inventory', userProfile.householdId), (doc) => {
       if (doc.exists()) {
@@ -720,19 +738,19 @@ export default function App() {
         setRemovedStaples(data.removedStaples || { pantry: [], refrigerator: [], freezer: [] });
         setManualShoppingList(data.manualShoppingList || []);
       }
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, `inventory/${userProfile.householdId}`));
 
     const unsubMealPlan = onSnapshot(doc(db, 'mealPlans', userProfile.householdId), (doc) => {
       if (doc.exists()) {
         setMealPlan(doc.data().plan || {});
       }
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, `mealPlans/${userProfile.householdId}`));
 
     const unsubFavorites = onSnapshot(doc(db, 'favorites', userProfile.householdId), (doc) => {
       if (doc.exists()) {
         setFavorites(doc.data().recipes || []);
       }
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, `favorites/${userProfile.householdId}`));
 
     return () => {
       unsubHousehold();
@@ -1335,6 +1353,19 @@ export default function App() {
       [key]: [...(prev[key] || []), newNote]
     }));
     setInputNote('');
+  };
+
+  const updateNoteInPlanner = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!editingNote || !editingNote.text.trim()) return;
+    
+    setMealPlan(prev => ({
+      ...prev,
+      [editingNote.dayKey]: (prev[editingNote.dayKey] || []).map(item => 
+        item.id === editingNote.id ? { ...item, text: editingNote.text.trim() } : item
+      )
+    }));
+    setEditingNote(null);
   };
 
   const removeFromMealPlan = (recipeId: string, dayKey: string) => {
@@ -2769,106 +2800,138 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-8"
             >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
-                      <Calendar size={24} />
+                <div className="flex flex-col gap-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
+                        <Calendar size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-serif font-bold">
+                          {plannerMode === 'week' ? t('weeklyPlanner') : t('monthlyPlanner')}
+                        </h2>
+                        {plannerMode === 'month' && (
+                          <p className="text-[#8E8E8E] text-xs font-bold uppercase tracking-widest mt-1">
+                            {t('week')} {currentWeek}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-serif font-bold">
-                        {plannerMode === 'week' ? t('weeklyPlanner') : t('monthlyPlanner')}
-                      </h2>
+
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex bg-[var(--secondary)] p-1 rounded-xl border border-[var(--accent)]">
+                        <button 
+                          onClick={() => setPlannerMode('week')}
+                          className={cn(
+                            "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all",
+                            plannerMode === 'week' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                          )}
+                        >
+                          {t('week')}
+                        </button>
+                        <button 
+                          onClick={() => setPlannerMode('month')}
+                          className={cn(
+                            "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all",
+                            plannerMode === 'month' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                          )}
+                        >
+                          {t('month')}
+                        </button>
+                      </div>
+
                       {plannerMode === 'month' && (
-                        <p className="text-[#8E8E8E] text-xs font-bold uppercase tracking-widest mt-1">
-                          {t('week')} {currentWeek}
-                        </p>
+                        <div className="flex bg-[var(--secondary)] p-1 rounded-xl border border-[var(--accent)]">
+                          {[1, 2, 3, 4].map(w => (
+                            <button 
+                              key={w}
+                              onClick={() => setCurrentWeek(w)}
+                              className={cn(
+                                "w-8 h-8 flex items-center justify-center text-[10px] font-bold rounded-lg transition-all",
+                                currentWeek === w ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                              )}
+                            >
+                              {w}
+                            </button>
+                          ))}
+                        </div>
                       )}
+
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => {
+                            if (plannerMode === 'week') {
+                              setMealPlan({});
+                            } else {
+                              setMealPlan(prev => {
+                                const next = { ...prev };
+                                DAYS_OF_WEEK.forEach(day => {
+                                  delete next[getDayKey(day, currentWeek)];
+                                });
+                                return next;
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
+                        >
+                          {plannerMode === 'week' ? t('clearAll') : t('clearWeek')}
+                        </button>
+                        {plannerMode === 'month' && (
+                          <button 
+                            onClick={() => setMealPlan({})}
+                            className="text-[10px] font-bold uppercase tracking-widest text-red-700 hover:opacity-70 transition-opacity"
+                          >
+                            {t('clearAll')}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <div className="flex bg-[var(--secondary)] p-1 rounded-xl border border-[var(--accent)]">
-                      <button 
-                        onClick={() => setPlannerMode('week')}
-                        className={cn(
-                          "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all",
-                          plannerMode === 'week' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
-                        )}
-                      >
-                        {t('week')}
-                      </button>
-                      <button 
-                        onClick={() => setPlannerMode('month')}
-                        className={cn(
-                          "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all",
-                          plannerMode === 'month' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
-                        )}
-                      >
-                        {t('month')}
-                      </button>
-                    </div>
 
-                    {plannerMode === 'month' && (
-                      <div className="flex bg-[var(--secondary)] p-1 rounded-xl border border-[var(--accent)]">
-                        {[1, 2, 3, 4].map(w => (
+                  {/* Note Form Row - Lowered and responsive */}
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {editingNote ? (
+                      <form onSubmit={updateNoteInPlanner} className="flex-1 flex items-center gap-2 bg-orange-50 p-1.5 rounded-2xl border border-orange-200 w-full">
+                        <input 
+                          type="text"
+                          autoFocus
+                          value={editingNote.text}
+                          onChange={(e) => setEditingNote({ ...editingNote, text: e.target.value })}
+                          className="bg-transparent border-none focus:ring-0 text-xs px-3 py-1.5 flex-1"
+                        />
+                        <div className="flex items-center gap-1">
                           <button 
-                            key={w}
-                            onClick={() => setCurrentWeek(w)}
-                            className={cn(
-                              "w-8 h-8 flex items-center justify-center text-[10px] font-bold rounded-lg transition-all",
-                              currentWeek === w ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
-                            )}
+                            type="button"
+                            onClick={() => setEditingNote(null)}
+                            className="text-[#8E8E8E] p-1.5 hover:text-red-500 transition-colors"
                           >
-                            {w}
+                            <X size={16} />
                           </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <form onSubmit={addNoteToPlanner} className="flex items-center gap-2 bg-[var(--secondary)] p-1.5 rounded-2xl border border-[var(--accent)]">
-                      <input 
-                        type="text"
-                        value={inputNote}
-                        onChange={(e) => setInputNote(e.target.value)}
-                        placeholder={lang === 'fr' ? 'Ajouter une note (ex: Resto)' : 'Add a note (e.g. Take-out)'}
-                        className="bg-transparent border-none focus:ring-0 text-xs px-3 py-1.5 w-40 sm:w-60"
-                      />
-                      <button 
-                        type="submit"
-                        className="bg-[var(--primary)] text-[var(--bg)] p-1.5 rounded-xl hover:scale-105 transition-transform"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </form>
-                    
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => {
-                          if (plannerMode === 'week') {
-                            setMealPlan({});
-                          } else {
-                            setMealPlan(prev => {
-                              const next = { ...prev };
-                              DAYS_OF_WEEK.forEach(day => {
-                                delete next[getDayKey(day, currentWeek)];
-                              });
-                              return next;
-                            });
-                          }
-                        }}
-                        className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
-                      >
-                        {plannerMode === 'week' ? t('clearAll') : t('clearWeek')}
-                      </button>
-                      {plannerMode === 'month' && (
+                          <button 
+                            type="submit"
+                            className="bg-orange-500 text-white p-1.5 rounded-xl hover:scale-105 transition-transform"
+                          >
+                            <Check size={16} />
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <form onSubmit={addNoteToPlanner} className="flex-1 flex items-center gap-2 bg-[var(--secondary)] p-1.5 rounded-2xl border border-[var(--accent)] w-full">
+                        <input 
+                          type="text"
+                          value={inputNote}
+                          onChange={(e) => setInputNote(e.target.value)}
+                          placeholder={lang === 'fr' ? 'Ajouter une note (ex: Resto)' : 'Add a note (e.g. Take-out)'}
+                          className="bg-transparent border-none focus:ring-0 text-xs px-3 py-1.5 flex-1"
+                        />
                         <button 
-                          onClick={() => setMealPlan({})}
-                          className="text-[10px] font-bold uppercase tracking-widest text-red-700 hover:opacity-70 transition-opacity"
+                          type="submit"
+                          className="bg-[var(--primary)] text-[var(--bg)] p-1.5 rounded-xl hover:scale-105 transition-transform"
                         >
-                          {t('clearAll')}
+                          <Plus size={16} />
                         </button>
-                      )}
-                    </div>
+                      </form>
+                    )}
                   </div>
                 </div>
 
@@ -2891,6 +2954,7 @@ export default function App() {
                         onRemove={removeFromMealPlan}
                         isFavorite={isFavorite}
                         onToggleFavorite={toggleFavorite}
+                        onEditNote={(id, dayKey, text) => setEditingNote({ id, dayKey, text })}
                       />
                     );
                   })}
