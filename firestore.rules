@@ -1,0 +1,185 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required, immutable)
+//   - email: string (required, immutable)
+//   - displayName: string (optional, max 100)
+//   - householdId: string (optional, max 50)
+//
+// Collection: households
+// Document ID: {householdId}
+// Fields:
+//   - id: string (required, immutable)
+//   - name: string (required, max 100)
+//   - ownerId: string (required, immutable)
+//   - inviteCode: string (required, max 10)
+//   - members: list (required, max 10 members)
+//
+// Collection: inventory
+// Document ID: {householdId}
+// Fields:
+//   - householdId: string (required, immutable)
+//   - pantry: list (max 200 items)
+//   - refrigerator: list (max 200 items)
+//   - freezer: list (max 200 items)
+//   - customInventory: map (max 500 keys)
+//   - customItemCategories: map (max 500 keys)
+//   - removedStaples: map (max 500 keys)
+//   - manualShoppingList: list (max 100 items)
+//
+// Collection: mealPlans
+// Document ID: {householdId}
+// Fields:
+//   - householdId: string (required, immutable)
+//   - plan: map (max 365 days)
+//
+// Collection: favorites
+// Document ID: {householdId}
+// Fields:
+//   - householdId: string (required, immutable)
+//   - recipes: list (max 100 recipes)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isHouseholdMember(householdId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/households/$(householdId)) &&
+        get(/databases/$(database)/documents/households/$(householdId)).data.members.hasAny([request.auth.uid]);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "ric.vincent@hotmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidString(val, maxLen) {
+      return val is string && val.size() <= maxLen;
+    }
+
+    function isValidOptionalString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasOnly(['uid', 'email', 'displayName', 'householdId']) &&
+             data.uid == request.auth.uid &&
+             isValidString(data.email, 255) &&
+             isValidOptionalString(data, 'displayName', 100) &&
+             isValidOptionalString(data, 'householdId', 50);
+    }
+
+    function isValidHousehold(data) {
+      return data.keys().hasOnly(['id', 'name', 'ownerId', 'inviteCode', 'members']) &&
+             data.id is string && 
+             isValidString(data.name, 100) &&
+             data.ownerId is string && 
+             isValidString(data.inviteCode, 10) && 
+             data.members is list && data.members.size() <= 10;
+    }
+
+    function isValidInventory(data) {
+      return data.keys().hasAll(['householdId']) &&
+             data.householdId is string &&
+             (!( 'pantry' in data) || (data.pantry is list && data.pantry.size() <= 200)) &&
+             (!( 'refrigerator' in data) || (data.refrigerator is list && data.refrigerator.size() <= 200)) &&
+             (!( 'freezer' in data) || (data.freezer is list && data.freezer.size() <= 200)) &&
+             (!( 'manualShoppingList' in data) || (data.manualShoppingList is list && data.manualShoppingList.size() <= 100));
+    }
+
+    function isValidMealPlan(data) {
+      return data.keys().hasAll(['householdId', 'plan']) &&
+             data.householdId is string && 
+             data.plan is map && data.plan.keys().size() <= 365;
+    }
+
+    function isValidFavorites(data) {
+      return data.keys().hasAll(['householdId', 'recipes']) &&
+             data.householdId is string && 
+             data.recipes is list && data.recipes.size() <= 100;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.uid == resource.data.uid &&
+                      request.resource.data.email == resource.data.email;
+    }
+
+    match /households/{householdId} {
+      allow read: if isAuthenticated() && (isHouseholdMember(householdId) || isAdmin());
+      
+      allow create: if isAuthenticated() && isValidHousehold(request.resource.data) && 
+                      request.resource.data.ownerId == request.auth.uid &&
+                      request.resource.data.members == [request.auth.uid];
+                      
+      allow update: if isAuthenticated() && isValidHousehold(request.resource.data) && (
+                      // Case 1: Owner updates household settings
+                      (resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == resource.data.ownerId) ||
+                      // Case 2: User joins household via invite code
+                      (request.resource.data.inviteCode == resource.data.inviteCode && 
+                       request.resource.data.id == resource.data.id &&
+                       request.resource.data.name == resource.data.name &&
+                       request.resource.data.ownerId == resource.data.ownerId &&
+                       request.resource.data.members.hasAll(resource.data.members) &&
+                       request.resource.data.members.size() == resource.data.members.size() + 1 &&
+                       request.resource.data.members.hasAny([request.auth.uid])) ||
+                      // Case 3: User leaves household
+                      (isHouseholdMember(householdId) && 
+                       request.resource.data.members.size() == resource.data.members.size() - 1 &&
+                       !request.resource.data.members.hasAny([request.auth.uid]))
+                    );
+    }
+
+    match /inventory/{householdId} {
+      allow read: if isHouseholdMember(householdId) || isAdmin();
+      allow create, update: if isHouseholdMember(householdId) && isValidInventory(request.resource.data) &&
+                              request.resource.data.householdId == householdId;
+    }
+
+    match /mealPlans/{householdId} {
+      allow read: if isHouseholdMember(householdId) || isAdmin();
+      allow create, update: if isHouseholdMember(householdId) && isValidMealPlan(request.resource.data) &&
+                              request.resource.data.householdId == householdId;
+    }
+
+    match /favorites/{householdId} {
+      allow read: if isHouseholdMember(householdId) || isAdmin();
+      allow create, update: if isHouseholdMember(householdId) && isValidFavorites(request.resource.data) &&
+                              request.resource.data.householdId == householdId;
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

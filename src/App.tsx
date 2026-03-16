@@ -56,6 +56,24 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from './lib/utils';
 import { Recipe, Note, MealItem } from './types';
 import { translations, Language } from './translations';
+import { 
+  auth, 
+  db, 
+  googleProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  onSnapshot, 
+  collection, 
+  query, 
+  where, 
+  getDocs 
+} from './firebase';
+import { User } from 'firebase/auth';
 
 const CUISINES = [
   "General",
@@ -345,15 +363,16 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onT
   );
 }
 
-function DroppableDay({ day, items, onRecipeClick, onRemove, isFavorite, onToggleFavorite }: { 
+function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite, onToggleFavorite }: { 
   day: string, 
+  dayKey: string,
   items: MealItem[], 
   onRecipeClick: (r: Recipe) => void,
-  onRemove: (id: string, day: string) => void,
+  onRemove: (id: string, dayKey: string) => void,
   isFavorite: (id: string) => boolean,
   onToggleFavorite: (r: Recipe) => void
 }) {
-  const { setNodeRef, isOver } = useSortable({ id: day });
+  const { setNodeRef, isOver } = useSortable({ id: dayKey });
 
   return (
     <div className="flex flex-col gap-4">
@@ -371,7 +390,7 @@ function DroppableDay({ day, items, onRecipeClick, onRemove, isFavorite, onToggl
               <DraggableMealItem 
                 key={item.id} 
                 item={item} 
-                day={day} 
+                day={dayKey} 
                 onRecipeClick={onRecipeClick} 
                 onRemove={onRemove} 
                 isFavorite={isFavorite}
@@ -497,6 +516,11 @@ export default function App() {
   });
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [activeTab, setActiveTab] = useState<'recipes' | 'pantry' | 'planner' | 'settings'>('recipes');
+  const [plannerMode, setPlannerMode] = useState<'week' | 'month'>(() => {
+    const saved = localStorage.getItem('mealmaker_planner_mode');
+    return (saved as 'week' | 'month') || 'week';
+  });
+  const [currentWeek, setCurrentWeek] = useState(1);
   const [inventory, setInventory] = useState<{ [key in InventoryCategory]: string[] }>(() => {
     const saved = localStorage.getItem('mealmaker_inventory');
     if (saved) return JSON.parse(saved);
@@ -581,6 +605,231 @@ export default function App() {
     return saved ? JSON.parse(saved) : { pantry: [], refrigerator: [], freezer: [] };
   });
 
+  // Firebase State
+  const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [household, setHousehold] = useState<any>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [householdNameInput, setHouseholdNameInput] = useState('');
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+
+  // Auth Effect
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        // Get or create user profile
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          setUserProfile(userDoc.data());
+        } else {
+          const newProfile = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            householdId: null
+          };
+          await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+          setUserProfile(newProfile);
+        }
+      } else {
+        setUserProfile(null);
+        setHousehold(null);
+      }
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Household Sync Effect
+  useEffect(() => {
+    if (!userProfile?.householdId) {
+      setHousehold(null);
+      return;
+    }
+
+    const unsubHousehold = onSnapshot(doc(db, 'households', userProfile.householdId), (doc) => {
+      if (doc.exists()) {
+        setHousehold(doc.data());
+      }
+    });
+
+    const unsubInventory = onSnapshot(doc(db, 'inventory', userProfile.householdId), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setInventory({
+          pantry: data.pantry || [],
+          refrigerator: data.refrigerator || [],
+          freezer: data.freezer || []
+        });
+        setCustomInventory(data.customInventory || { pantry: [], refrigerator: [], freezer: [] });
+        setCustomItemCategories(data.customItemCategories || {});
+        setRemovedStaples(data.removedStaples || { pantry: [], refrigerator: [], freezer: [] });
+        setManualShoppingList(data.manualShoppingList || []);
+      }
+    });
+
+    const unsubMealPlan = onSnapshot(doc(db, 'mealPlans', userProfile.householdId), (doc) => {
+      if (doc.exists()) {
+        setMealPlan(doc.data().plan || {});
+      }
+    });
+
+    const unsubFavorites = onSnapshot(doc(db, 'favorites', userProfile.householdId), (doc) => {
+      if (doc.exists()) {
+        setFavorites(doc.data().recipes || []);
+      }
+    });
+
+    return () => {
+      unsubHousehold();
+      unsubInventory();
+      unsubMealPlan();
+      unsubFavorites();
+    };
+  }, [userProfile?.householdId]);
+
+  // Push Local Data to Firebase when joining a household for the first time
+  const pushLocalDataToFirebase = async (householdId: string) => {
+    setIsSyncing(true);
+    try {
+      await setDoc(doc(db, 'inventory', householdId), {
+        householdId,
+        pantry: inventory.pantry,
+        refrigerator: inventory.refrigerator,
+        freezer: inventory.freezer,
+        customInventory,
+        customItemCategories,
+        removedStaples,
+        manualShoppingList
+      });
+      await setDoc(doc(db, 'mealPlans', householdId), {
+        householdId,
+        plan: mealPlan
+      });
+      await setDoc(doc(db, 'favorites', householdId), {
+        householdId,
+        recipes: favorites
+      });
+    } catch (err) {
+      console.error("Error pushing local data:", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      console.error("Login error:", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
+
+  const createHousehold = async () => {
+    if (!user || !householdNameInput) return;
+    const householdId = doc(collection(db, 'households')).id;
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    const newHousehold = {
+      id: householdId,
+      name: householdNameInput,
+      ownerId: user.uid,
+      inviteCode,
+      members: [user.uid]
+    };
+
+    await setDoc(doc(db, 'households', householdId), newHousehold);
+    await updateDoc(doc(db, 'users', user.uid), { householdId });
+    setUserProfile(prev => ({ ...prev, householdId }));
+    
+    // Push current local data to the new household
+    await pushLocalDataToFirebase(householdId);
+    setNotification({ message: t('householdCreated'), type: 'success' });
+  };
+
+  const joinHousehold = async () => {
+    if (!user || !inviteCodeInput) return;
+    const q = query(collection(db, 'households'), where('inviteCode', '==', inviteCodeInput.toUpperCase()));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const householdDoc = querySnapshot.docs[0];
+      const householdId = householdDoc.id;
+      const data = householdDoc.data();
+      
+      if (!data.members.includes(user.uid)) {
+        await updateDoc(doc(db, 'households', householdId), {
+          members: [...data.members, user.uid]
+        });
+      }
+      
+      await updateDoc(doc(db, 'users', user.uid), { householdId });
+      setUserProfile(prev => ({ ...prev, householdId }));
+      setNotification({ message: t('householdJoined'), type: 'success' });
+    } else {
+      setNotification({ message: t('errorJoiningHousehold'), type: 'info' });
+    }
+  };
+
+  const leaveHousehold = async () => {
+    if (!user || !userProfile.householdId || !household) return;
+    
+    const newMembers = household.members.filter((m: string) => m !== user.uid);
+    if (newMembers.length === 0) {
+      // Optional: delete household if last member leaves
+    } else {
+      await updateDoc(doc(db, 'households', userProfile.householdId), {
+        members: newMembers
+      });
+    }
+    
+    await updateDoc(doc(db, 'users', user.uid), { householdId: null });
+    setUserProfile(prev => ({ ...prev, householdId: null }));
+    setHousehold(null);
+  };
+
+  // Debounced Sync to Firestore
+  useEffect(() => {
+    if (!userProfile?.householdId || isSyncing) return;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        // Use setDoc with merge to ensure it works even if doc was somehow deleted
+        await setDoc(doc(db, 'inventory', userProfile.householdId), {
+          pantry: inventory.pantry,
+          refrigerator: inventory.refrigerator,
+          freezer: inventory.freezer,
+          customInventory,
+          customItemCategories,
+          removedStaples,
+          manualShoppingList
+        }, { merge: true });
+        
+        await setDoc(doc(db, 'mealPlans', userProfile.householdId), {
+          plan: mealPlan
+        }, { merge: true });
+        
+        await setDoc(doc(db, 'favorites', userProfile.householdId), {
+          recipes: favorites
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error syncing to Firestore:", err);
+      }
+    }, 2000); // 2 second debounce to avoid excessive writes
+
+    return () => clearTimeout(timeoutId);
+  }, [inventory, customInventory, customItemCategories, removedStaples, manualShoppingList, mealPlan, favorites, userProfile?.householdId]);
+
   useEffect(() => {
     localStorage.setItem('mealmaker_ingredients', JSON.stringify(ingredients));
   }, [ingredients]);
@@ -592,6 +841,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('mealmaker_recipes', JSON.stringify(recipes));
   }, [recipes]);
+
+  useEffect(() => {
+    localStorage.setItem('mealmaker_planner_mode', plannerMode);
+  }, [plannerMode]);
 
   useEffect(() => {
     localStorage.setItem('mealmaker_inventory', JSON.stringify(inventory));
@@ -780,20 +1033,22 @@ export default function App() {
     let destDay: string | null = null;
 
     // Check if overId is a day container or an item within a day
-    if ((DAYS_OF_WEEK as readonly string[]).includes(overId)) {
+    if (Object.keys(mealPlan).includes(overId) || (plannerMode === 'month' && overId.startsWith('Week '))) {
+      destDay = overId;
+    } else if ((DAYS_OF_WEEK as readonly string[]).includes(overId)) {
       destDay = overId;
     } else {
-      for (const day of DAYS_OF_WEEK) {
-        if (mealPlan[day]?.some(i => i.id === overId)) {
-          destDay = day;
+      for (const dayKey of Object.keys(mealPlan)) {
+        if (mealPlan[dayKey]?.some(i => i.id === overId)) {
+          destDay = dayKey;
           break;
         }
       }
     }
 
-    for (const day of DAYS_OF_WEEK) {
-      if (mealPlan[day]?.some(i => i.id === activeId)) {
-        sourceDay = day;
+    for (const dayKey of Object.keys(mealPlan)) {
+      if (mealPlan[dayKey]?.some(i => i.id === activeId)) {
+        sourceDay = dayKey;
         break;
       }
     }
@@ -940,10 +1195,16 @@ export default function App() {
     }));
   };
 
+  const getDayKey = (day: string, week: number) => {
+    if (plannerMode === 'week') return day;
+    return `Week ${week}-${day}`;
+  };
+
   const addToMealPlan = (recipe: Recipe, day: string) => {
+    const key = getDayKey(day, currentWeek);
     setMealPlan(prev => ({
       ...prev,
-      [day]: [...(prev[day] || []), recipe]
+      [key]: [...(prev[key] || []), recipe]
     }));
     setOpenPlannerId(null);
   };
@@ -960,17 +1221,18 @@ export default function App() {
     
     // Default to Monday or first day
     const day = DAYS_OF_WEEK[0];
+    const key = getDayKey(day, currentWeek);
     setMealPlan(prev => ({
       ...prev,
-      [day]: [...(prev[day] || []), newNote]
+      [key]: [...(prev[key] || []), newNote]
     }));
     setInputNote('');
   };
 
-  const removeFromMealPlan = (recipeId: string, day: string) => {
+  const removeFromMealPlan = (recipeId: string, dayKey: string) => {
     setMealPlan(prev => ({
       ...prev,
-      [day]: (prev[day] || []).filter(r => r.id !== recipeId)
+      [dayKey]: (prev[dayKey] || []).filter(r => r.id !== recipeId)
     }));
   };
 
@@ -1117,6 +1379,7 @@ export default function App() {
       For each recipe, identify which ingredients are "missing" (not in the priority or secondary lists).
       Ensure the cost per portion is an estimate: $ (budget), $$ (moderate), $$$ (premium).
       Ensure calories and protein are realistic estimates per serving.
+      Include appropriate dietary tags (e.g., Vegetarian, Vegan, Gluten-Free, Dairy-Free, Keto, Paleo, Nut-Free, High-Protein, Low-Calorie).
       Specify the number of servings the recipe makes (it MUST be ${servings}).
       IMPORTANT: All text content (title, description, instructions, ingredients) MUST be in ${lang === 'fr' ? 'French' : 'English'}.`;
 
@@ -1171,7 +1434,7 @@ export default function App() {
                     },
                     category: { type: Type.STRING, description: "One of: Breakfast, Lunch, Dinner, Snack, Dessert" }
                   },
-                  required: ["id", "title", "description", "totalTime", "costPerPortion", "caloriesPerPortion", "proteinPerPortion", "servings", "ingredients", "instructions", "category"]
+                  required: ["id", "title", "description", "totalTime", "costPerPortion", "caloriesPerPortion", "proteinPerPortion", "servings", "ingredients", "instructions", "category", "dietaryTags"]
                 }
               }
             }
@@ -1676,7 +1939,7 @@ export default function App() {
                                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
                                   <div>
                                     <div className="flex flex-wrap gap-2 mb-3">
-                                      {recipe.dietaryTags.map(tag => (
+                                      {recipe.dietaryTags?.map(tag => (
                                         <span key={tag} className="px-2 py-1 bg-[var(--secondary)] text-[var(--primary)] rounded-md text-[10px] font-bold uppercase tracking-wider">
                                           {tag}
                                         </span>
@@ -1740,6 +2003,25 @@ export default function App() {
                                           openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
                                         )}>
                                           <div className="bg-[var(--bg)] border border-[var(--accent)] rounded-xl shadow-xl p-2">
+                                            {plannerMode === 'month' && (
+                                              <div className="flex border-b border-[var(--accent)] mb-2 pb-2 gap-1">
+                                                {[1, 2, 3, 4].map(w => (
+                                                  <button 
+                                                    key={w}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setCurrentWeek(w);
+                                                    }}
+                                                    className={cn(
+                                                      "flex-1 h-6 flex items-center justify-center text-[9px] font-bold rounded-md transition-all",
+                                                      currentWeek === w ? "bg-[var(--primary)] text-[var(--bg)]" : "bg-[var(--secondary)] text-[#8E8E8E]"
+                                                    )}
+                                                  >
+                                                    W{w}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            )}
                                             {DAYS_OF_WEEK.map(day => (
                                               <button 
                                                 key={day}
@@ -2022,6 +2304,25 @@ export default function App() {
                                       openPlannerId === recipe.id ? "block" : "hidden lg:group-hover/planner:block"
                                     )}>
                                       <div className="bg-[var(--bg)] border border-[var(--accent)] rounded-xl shadow-xl p-2">
+                                        {plannerMode === 'month' && (
+                                          <div className="flex border-b border-[var(--accent)] mb-2 pb-2 gap-1">
+                                            {[1, 2, 3, 4].map(w => (
+                                              <button 
+                                                key={w}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setCurrentWeek(w);
+                                                }}
+                                                className={cn(
+                                                  "flex-1 h-6 flex items-center justify-center text-[9px] font-bold rounded-md transition-all",
+                                                  currentWeek === w ? "bg-[var(--primary)] text-[var(--bg)]" : "bg-[var(--secondary)] text-[#8E8E8E]"
+                                                )}
+                                              >
+                                                W{w}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
                                         {DAYS_OF_WEEK.map(day => (
                                           <button 
                                             key={day}
@@ -2364,10 +2665,57 @@ export default function App() {
                     <div className="w-12 h-12 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
                       <Calendar size={24} />
                     </div>
-                    <h2 className="text-2xl font-serif font-bold">{t('weeklyPlanner')}</h2>
+                    <div>
+                      <h2 className="text-2xl font-serif font-bold">
+                        {plannerMode === 'week' ? t('weeklyPlanner') : t('monthlyPlanner')}
+                      </h2>
+                      {plannerMode === 'month' && (
+                        <p className="text-[#8E8E8E] text-xs font-bold uppercase tracking-widest mt-1">
+                          {t('week')} {currentWeek}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-4">
+                    <div className="flex bg-[var(--secondary)] p-1 rounded-xl border border-[var(--accent)]">
+                      <button 
+                        onClick={() => setPlannerMode('week')}
+                        className={cn(
+                          "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all",
+                          plannerMode === 'week' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                        )}
+                      >
+                        {t('week')}
+                      </button>
+                      <button 
+                        onClick={() => setPlannerMode('month')}
+                        className={cn(
+                          "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all",
+                          plannerMode === 'month' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                        )}
+                      >
+                        {t('month')}
+                      </button>
+                    </div>
+
+                    {plannerMode === 'month' && (
+                      <div className="flex bg-[var(--secondary)] p-1 rounded-xl border border-[var(--accent)]">
+                        {[1, 2, 3, 4].map(w => (
+                          <button 
+                            key={w}
+                            onClick={() => setCurrentWeek(w)}
+                            className={cn(
+                              "w-8 h-8 flex items-center justify-center text-[10px] font-bold rounded-lg transition-all",
+                              currentWeek === w ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                            )}
+                          >
+                            {w}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     <form onSubmit={addNoteToPlanner} className="flex items-center gap-2 bg-[var(--secondary)] p-1.5 rounded-2xl border border-[var(--accent)]">
                       <input 
                         type="text"
@@ -2384,12 +2732,34 @@ export default function App() {
                       </button>
                     </form>
                     
-                    <button 
-                      onClick={() => setMealPlan({})}
-                      className="text-xs font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
-                    >
-                      {t('clearAll')}
-                    </button>
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => {
+                          if (plannerMode === 'week') {
+                            setMealPlan({});
+                          } else {
+                            setMealPlan(prev => {
+                              const next = { ...prev };
+                              DAYS_OF_WEEK.forEach(day => {
+                                delete next[getDayKey(day, currentWeek)];
+                              });
+                              return next;
+                            });
+                          }
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:opacity-70 transition-opacity"
+                      >
+                        {plannerMode === 'week' ? t('clearAll') : t('clearWeek')}
+                      </button>
+                      {plannerMode === 'month' && (
+                        <button 
+                          onClick={() => setMealPlan({})}
+                          className="text-[10px] font-bold uppercase tracking-widest text-red-700 hover:opacity-70 transition-opacity"
+                        >
+                          {t('clearAll')}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -2400,17 +2770,21 @@ export default function App() {
                 onDragEnd={handleDragEnd}
               >
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                  {DAYS_OF_WEEK.map(day => (
-                    <DroppableDay 
-                      key={day} 
-                      day={t(`days.${day}`)} 
-                      items={mealPlan[day] || []} 
-                      onRecipeClick={setViewingPlannerRecipe}
-                      onRemove={removeFromMealPlan}
-                      isFavorite={isFavorite}
-                      onToggleFavorite={toggleFavorite}
-                    />
-                  ))}
+                  {DAYS_OF_WEEK.map(day => {
+                    const dayKey = getDayKey(day, currentWeek);
+                    return (
+                      <DroppableDay 
+                        key={dayKey} 
+                        day={t(`days.${day}`)} 
+                        dayKey={dayKey}
+                        items={mealPlan[dayKey] || []} 
+                        onRecipeClick={setViewingPlannerRecipe}
+                        onRemove={removeFromMealPlan}
+                        isFavorite={isFavorite}
+                        onToggleFavorite={toggleFavorite}
+                      />
+                    );
+                  })}
                 </div>
 
                 <DragOverlay dropAnimation={{
@@ -2459,6 +2833,136 @@ export default function App() {
                 </div>
 
                 <div className="space-y-8">
+                  <section className="space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)]">
+                        <Users size={20} />
+                      </div>
+                      <h3 className="text-lg font-serif font-bold">{t('household')}</h3>
+                    </div>
+
+                    {!user ? (
+                      <div className="bg-[var(--secondary)] p-8 rounded-[32px] text-center space-y-4">
+                        <p className="text-sm text-[#8E8E8E] leading-relaxed">
+                          {t('householdDescription')}
+                        </p>
+                        <button 
+                          onClick={handleLogin}
+                          className="px-8 py-3 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-semibold hover:opacity-90 transition-all flex items-center gap-2 mx-auto"
+                        >
+                          <Users size={18} />
+                          {t('signInWithGoogle')}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between p-4 bg-[var(--secondary)] rounded-2xl">
+                          <div className="flex items-center gap-3">
+                            {user.photoURL ? (
+                              <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="w-10 h-10 bg-[var(--accent)] rounded-full flex items-center justify-center text-[var(--primary)]">
+                                <Users size={20} />
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-sm font-bold">{user.displayName}</p>
+                              <p className="text-xs text-[#8E8E8E]">{user.email}</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={handleLogout}
+                            className="text-xs font-bold text-red-500 hover:opacity-70 transition-opacity"
+                          >
+                            {t('signOut')}
+                          </button>
+                        </div>
+
+                        {!userProfile?.householdId ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-[var(--secondary)] p-6 rounded-3xl space-y-4">
+                              <h4 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E]">{t('createHousehold')}</h4>
+                              <input 
+                                type="text"
+                                value={householdNameInput}
+                                onChange={(e) => setHouseholdNameInput(e.target.value)}
+                                placeholder={t('householdName')}
+                                className="w-full px-4 py-3 bg-[var(--bg)] rounded-xl border border-[var(--accent)] text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                              />
+                              <button 
+                                onClick={createHousehold}
+                                disabled={!householdNameInput}
+                                className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+                              >
+                                {t('create')}
+                              </button>
+                            </div>
+
+                            <div className="bg-[var(--secondary)] p-6 rounded-3xl space-y-4">
+                              <h4 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E]">{t('joinHousehold')}</h4>
+                              <input 
+                                type="text"
+                                value={inviteCodeInput}
+                                onChange={(e) => setInviteCodeInput(e.target.value)}
+                                placeholder={t('enterInviteCode')}
+                                className="w-full px-4 py-3 bg-[var(--bg)] rounded-xl border border-[var(--accent)] text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none uppercase"
+                              />
+                              <button 
+                                onClick={joinHousehold}
+                                disabled={!inviteCodeInput}
+                                className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+                              >
+                                {t('join')}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-[var(--secondary)] p-6 rounded-3xl space-y-6">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-1">{t('household')}</h4>
+                                <p className="text-xl font-serif font-bold">{household?.name}</p>
+                              </div>
+                              <button 
+                                onClick={leaveHousehold}
+                                className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors"
+                              >
+                                {t('leaveHousehold')}
+                              </button>
+                            </div>
+
+                            <div className="p-4 bg-[var(--bg)] rounded-2xl border border-[var(--accent)] flex items-center justify-between">
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-1">{t('inviteCode')}</p>
+                                <p className="text-lg font-mono font-bold tracking-wider">{household?.inviteCode}</p>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(household?.inviteCode || '');
+                                  setNotification({ message: t('inviteCodeCopied'), type: 'success' });
+                                }}
+                                className="p-2 bg-[var(--secondary)] rounded-xl text-[var(--primary)] hover:bg-[var(--accent)] transition-colors"
+                              >
+                                <Copy size={18} />
+                              </button>
+                            </div>
+
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8E] mb-3">{t('householdMembers')}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {household?.members?.map((memberId: string) => (
+                                  <div key={memberId} className="w-8 h-8 bg-[var(--accent)] rounded-full flex items-center justify-center text-[var(--primary)] text-[10px] font-bold border border-white/20">
+                                    {memberId.substring(0, 2).toUpperCase()}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </section>
+
                   <section>
                     <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-6 flex items-center gap-2">
                       <Box size={18} />

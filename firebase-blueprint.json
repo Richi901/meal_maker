@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Information about a specific user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "householdId": { "type": "string", "description": "The ID of the household this user belongs to." }
+      },
+      "required": ["uid", "email"]
+    },
+    "Household": {
+      "title": "Household",
+      "description": "A group of users sharing inventory and meal plans.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "members": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["id", "name", "ownerId", "inviteCode", "members"]
+    },
+    "Inventory": {
+      "title": "Inventory",
+      "description": "Shared kitchen inventory.",
+      "type": "object",
+      "properties": {
+        "householdId": { "type": "string" },
+        "pantry": { "type": "array", "items": { "type": "string" } },
+        "refrigerator": { "type": "array", "items": { "type": "string" } },
+        "freezer": { "type": "array", "items": { "type": "string" } },
+        "customInventory": { "type": "object" },
+        "customItemCategories": { "type": "object" },
+        "removedStaples": { "type": "object" },
+        "manualShoppingList": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["householdId"]
+    },
+    "MealPlan": {
+      "title": "Meal Plan",
+      "description": "Shared meal planning data.",
+      "type": "object",
+      "properties": {
+        "householdId": { "type": "string" },
+        "plan": { "type": "object", "description": "Map of date keys to MealItem arrays." }
+      },
+      "required": ["householdId", "plan"]
+    },
+    "Favorites": {
+      "title": "Favorites",
+      "description": "Shared favorite recipes.",
+      "type": "object",
+      "properties": {
+        "householdId": { "type": "string" },
+        "recipes": { "type": "array", "items": { "$ref": "Recipe" } }
+      },
+      "required": ["householdId", "recipes"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles."
+    },
+    "/households/{householdId}": {
+      "schema": "Household",
+      "description": "Household groups."
+    },
+    "/inventory/{householdId}": {
+      "schema": "Inventory",
+      "description": "Shared inventory per household."
+    },
+    "/mealPlans/{householdId}": {
+      "schema": "MealPlan",
+      "description": "Shared meal plans per household."
+    },
+    "/favorites/{householdId}": {
+      "schema": "Favorites",
+      "description": "Shared favorites per household."
+    }
+  }
+}
