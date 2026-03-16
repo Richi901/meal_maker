@@ -25,6 +25,7 @@ export interface Note {
   id: string;
   type: 'note';
   text: string;
+  details?: string;
 }
 
 export type MealItem = Recipe | Note;

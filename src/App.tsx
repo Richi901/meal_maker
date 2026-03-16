@@ -285,16 +285,34 @@ const STAPLE_CATEGORY_MAP: Record<string, ItemCategory> = {
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
-function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onToggleFavorite, onEditNote }: { 
+function DraggableMealItem({ 
+  item, 
+  day, 
+  onRecipeClick, 
+  onRemove, 
+  isFavorite, 
+  onToggleFavorite, 
+  onEditNote,
+  editingNote,
+  onUpdateNote,
+  onCancelEdit,
+  onViewDetails
+}: { 
   item: MealItem, 
   day: string, 
   onRecipeClick: (r: Recipe) => void, 
   onRemove: (id: string, day: string) => void,
   isFavorite?: (id: string) => boolean,
   onToggleFavorite?: (r: Recipe) => void,
-  onEditNote?: (id: string, dayKey: string, text: string) => void
+  onEditNote?: (id: string, dayKey: string, text: string) => void,
+  editingNote?: { id: string, dayKey: string, text: string } | null,
+  onUpdateNote?: (e: React.FormEvent) => void,
+  onCancelEdit?: () => void,
+  onViewDetails?: (id: string, dayKey: string, note: Note) => void
 }) {
   const isNote = 'type' in item && item.type === 'note';
+  const isEditing = isNote && editingNote?.id === item.id && editingNote?.dayKey === day;
+
   const {
     attributes,
     listeners,
@@ -318,25 +336,61 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onT
         "p-3 rounded-2xl relative group cursor-pointer transition-colors",
         isNote ? "bg-orange-50 border border-orange-100 hover:bg-orange-100" : "bg-[var(--secondary)] hover:bg-[var(--accent)]"
       )}
-      onClick={() => !isNote && onRecipeClick(item as Recipe)}
+      onClick={() => {
+        if (!isNote) {
+          onRecipeClick(item as Recipe);
+        } else if (!isEditing && onViewDetails) {
+          onViewDetails(item.id, day, item as Note);
+        }
+      }}
     >
       <div {...attributes} {...listeners} className="absolute left-0 top-0 bottom-0 w-10 flex items-center justify-center text-[#8E8E8E] opacity-100 lg:opacity-0 lg:group-hover:opacity-100 cursor-grab active:cursor-grabbing z-10">
         <GripVertical size={16} />
       </div>
       <div className="pl-8">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-xs font-bold leading-tight pr-4">{isNote ? (item as Note).text : (item as Recipe).title}</h4>
+          {isEditing ? (
+            <form 
+              onSubmit={onUpdateNote} 
+              className="flex-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input 
+                autoFocus
+                type="text"
+                value={editingNote.text}
+                onChange={(e) => onEditNote?.(item.id, day, e.target.value)}
+                onBlur={onUpdateNote}
+                className="w-full bg-white border border-orange-200 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-orange-500 outline-none"
+              />
+            </form>
+          ) : (
+            <h4 className="text-xs font-bold leading-tight pr-4">
+              {isNote ? (item as Note).text || <span className="text-[#8E8E8E] italic">Empty note...</span> : (item as Recipe).title}
+            </h4>
+          )}
           <div className="flex items-center gap-1 shrink-0">
-            {isNote && onEditNote && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditNote(item.id, day, (item as Note).text);
-                }}
-                className="text-[#8E8E8E] hover:text-[var(--primary)] transition-colors p-1"
-              >
-                <Edit2 size={12} />
-              </button>
+            {isNote && !isEditing && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditNote?.(item.id, day, (item as Note).text);
+                  }}
+                  className="text-[#8E8E8E] hover:text-[var(--primary)] transition-colors p-1"
+                >
+                  <Edit2 size={12} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewDetails?.(item.id, day, item as Note);
+                  }}
+                  className="text-[#8E8E8E] hover:text-[var(--primary)] transition-colors p-1"
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </>
             )}
             {!isNote && isFavorite && onToggleFavorite && (
               <button
@@ -380,7 +434,21 @@ function DraggableMealItem({ item, day, onRecipeClick, onRemove, isFavorite, onT
   );
 }
 
-function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite, onToggleFavorite, onEditNote }: { 
+function DroppableDay({ 
+  day, 
+  dayKey, 
+  items, 
+  onRecipeClick, 
+  onRemove, 
+  isFavorite, 
+  onToggleFavorite, 
+  onEditNote,
+  editingNote,
+  onUpdateNote,
+  onCancelEdit,
+  onAddNote,
+  onViewDetails
+}: { 
   day: string, 
   dayKey: string,
   items: MealItem[], 
@@ -388,13 +456,27 @@ function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite,
   onRemove: (id: string, dayKey: string) => void,
   isFavorite: (id: string) => boolean,
   onToggleFavorite: (r: Recipe) => void,
-  onEditNote: (id: string, dayKey: string, text: string) => void
+  onEditNote: (id: string, dayKey: string, text: string) => void,
+  editingNote: { id: string, dayKey: string, text: string } | null,
+  onUpdateNote: (e: React.FormEvent) => void,
+  onCancelEdit: () => void,
+  onAddNote: (dayKey: string) => void,
+  onViewDetails: (id: string, dayKey: string, note: Note) => void
 }) {
   const { setNodeRef, isOver } = useSortable({ id: dayKey });
 
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E] text-center">{day}</h3>
+      <div className="flex items-center justify-between px-2">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#8E8E8E]">{day}</h3>
+        <button 
+          onClick={() => onAddNote(dayKey)}
+          className="flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-600 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-orange-100 transition-colors"
+        >
+          <Plus size={10} />
+          Note
+        </button>
+      </div>
       <div 
         ref={setNodeRef}
         className={cn(
@@ -414,6 +496,10 @@ function DroppableDay({ day, dayKey, items, onRecipeClick, onRemove, isFavorite,
                 isFavorite={isFavorite}
                 onToggleFavorite={onToggleFavorite}
                 onEditNote={onEditNote}
+                editingNote={editingNote}
+                onUpdateNote={onUpdateNote}
+                onCancelEdit={onCancelEdit}
+                onViewDetails={onViewDetails}
               />
             ))
           ) : (
@@ -632,7 +718,6 @@ export default function App() {
   const [inputPantryStaple, setInputPantryStaple] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ItemCategory>('Others');
   const [inventoryError, setInventoryError] = useState<string | null>(null);
-  const [inputNote, setInputNote] = useState('');
   const [customItemCategories, setCustomItemCategories] = useState<Record<string, ItemCategory>>(() => {
     const saved = localStorage.getItem('mealmaker_custom_item_categories');
     return saved ? JSON.parse(saved) : {};
@@ -650,6 +735,7 @@ export default function App() {
   });
   const [viewingPlannerRecipe, setViewingPlannerRecipe] = useState<Recipe | null>(null);
   const [editingNote, setEditingNote] = useState<{ id: string, dayKey: string, text: string } | null>(null);
+  const [viewingNoteDetails, setViewingNoteDetails] = useState<{ id: string, dayKey: string, note: Note } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<MealItem | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -759,6 +845,16 @@ export default function App() {
       unsubFavorites();
     };
   }, [userProfile?.householdId]);
+
+  // Notification Auto-clear Effect
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Push Local Data to Firebase when joining a household for the first time
   const pushLocalDataToFirebase = async (householdId: string) => {
@@ -1221,7 +1317,6 @@ export default function App() {
 
   const showNotification = (message: string, type: 'success' | 'info' = 'success') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const addToManualShoppingList = (item: string) => {
@@ -1335,36 +1430,50 @@ export default function App() {
     setOpenPlannerId(null);
   };
 
-  const addNoteToPlanner = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!inputNote.trim()) return;
+  const addNoteToPlanner = (dayKey?: string) => {
+    const targetDayKey = dayKey || getDayKey(DAYS_OF_WEEK[0], currentWeek);
     
     const newNote: Note = {
       id: `note-${Date.now()}`,
       type: 'note',
-      text: inputNote.trim()
+      text: ''
     };
     
-    // Default to Monday or first day
-    const day = DAYS_OF_WEEK[0];
-    const key = getDayKey(day, currentWeek);
     setMealPlan(prev => ({
       ...prev,
-      [key]: [...(prev[key] || []), newNote]
+      [targetDayKey]: [...(prev[targetDayKey] || []), newNote]
     }));
-    setInputNote('');
+    
+    // Immediately enter edit mode
+    setEditingNote({ id: newNote.id, dayKey: targetDayKey, text: '' });
+  };
+
+  const updateNoteDetails = (id: string, dayKey: string, details: string) => {
+    setMealPlan(prev => ({
+      ...prev,
+      [dayKey]: (prev[dayKey] || []).map(item => 
+        item.id === id ? { ...item, details } : item
+      )
+    }));
+    if (viewingNoteDetails && viewingNoteDetails.id === id) {
+      setViewingNoteDetails({ ...viewingNoteDetails, note: { ...viewingNoteDetails.note, details } });
+    }
   };
 
   const updateNoteInPlanner = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!editingNote || !editingNote.text.trim()) return;
+    if (!editingNote) return;
     
-    setMealPlan(prev => ({
-      ...prev,
-      [editingNote.dayKey]: (prev[editingNote.dayKey] || []).map(item => 
-        item.id === editingNote.id ? { ...item, text: editingNote.text.trim() } : item
-      )
-    }));
+    if (!editingNote.text.trim()) {
+      removeFromMealPlan(editingNote.id, editingNote.dayKey);
+    } else {
+      setMealPlan(prev => ({
+        ...prev,
+        [editingNote.dayKey]: (prev[editingNote.dayKey] || []).map(item => 
+          item.id === editingNote.id ? { ...item, text: editingNote.text.trim() } : item
+        )
+      }));
+    }
     setEditingNote(null);
   };
 
@@ -2888,51 +2997,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Note Form Row - Lowered and responsive */}
-                  <div className="flex flex-col sm:flex-row items-center gap-4">
-                    {editingNote ? (
-                      <form onSubmit={updateNoteInPlanner} className="flex-1 flex items-center gap-2 bg-orange-50 p-1.5 rounded-2xl border border-orange-200 w-full">
-                        <input 
-                          type="text"
-                          autoFocus
-                          value={editingNote.text}
-                          onChange={(e) => setEditingNote({ ...editingNote, text: e.target.value })}
-                          className="bg-transparent border-none focus:ring-0 text-xs px-3 py-1.5 flex-1"
-                        />
-                        <div className="flex items-center gap-1">
-                          <button 
-                            type="button"
-                            onClick={() => setEditingNote(null)}
-                            className="text-[#8E8E8E] p-1.5 hover:text-red-500 transition-colors"
-                          >
-                            <X size={16} />
-                          </button>
-                          <button 
-                            type="submit"
-                            className="bg-orange-500 text-white p-1.5 rounded-xl hover:scale-105 transition-transform"
-                          >
-                            <Check size={16} />
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <form onSubmit={addNoteToPlanner} className="flex-1 flex items-center gap-2 bg-[var(--secondary)] p-1.5 rounded-2xl border border-[var(--accent)] w-full">
-                        <input 
-                          type="text"
-                          value={inputNote}
-                          onChange={(e) => setInputNote(e.target.value)}
-                          placeholder={lang === 'fr' ? 'Ajouter une note (ex: Resto)' : 'Add a note (e.g. Take-out)'}
-                          className="bg-transparent border-none focus:ring-0 text-xs px-3 py-1.5 flex-1"
-                        />
-                        <button 
-                          type="submit"
-                          className="bg-[var(--primary)] text-[var(--bg)] p-1.5 rounded-xl hover:scale-105 transition-transform"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </form>
-                    )}
-                  </div>
                 </div>
 
               <DndContext 
@@ -2955,6 +3019,11 @@ export default function App() {
                         isFavorite={isFavorite}
                         onToggleFavorite={toggleFavorite}
                         onEditNote={(id, dayKey, text) => setEditingNote({ id, dayKey, text })}
+                        editingNote={editingNote}
+                        onUpdateNote={updateNoteInPlanner}
+                        onCancelEdit={() => setEditingNote(null)}
+                        onAddNote={addNoteToPlanner}
+                        onViewDetails={(id, dayKey, note) => setViewingNoteDetails({ id, dayKey, note })}
                       />
                     );
                   })}
@@ -3189,6 +3258,77 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Note Details Modal */}
+      <AnimatePresence>
+        {viewingNoteDetails && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setViewingNoteDetails(null)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="fixed inset-4 md:inset-20 bg-[var(--bg)] z-[110] rounded-[48px] shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 md:p-10 border-b border-[var(--secondary)] flex items-center justify-between bg-[var(--bg)] sticky top-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-500">
+                    <Box size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-serif font-bold">
+                      {viewingNoteDetails.note.text || (lang === 'fr' ? 'Note sans titre' : 'Untitled Note')}
+                    </h2>
+                    <p className="text-[#8E8E8E] text-xs font-bold uppercase tracking-widest mt-1">
+                      {t(`days.${viewingNoteDetails.dayKey.split('-')[0]}`)}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setViewingNoteDetails(null)}
+                  className="w-10 h-10 bg-[var(--secondary)] rounded-full flex items-center justify-center text-[var(--primary)] hover:bg-[var(--accent)] transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 md:p-10">
+                <div className="max-w-3xl mx-auto space-y-8">
+                  <section>
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">
+                      {lang === 'fr' ? 'Détails de la note' : 'Note Details'}
+                    </h3>
+                    <textarea 
+                      value={viewingNoteDetails.note.details || ''}
+                      onChange={(e) => updateNoteDetails(viewingNoteDetails.id, viewingNoteDetails.dayKey, e.target.value)}
+                      placeholder={lang === 'fr' ? 'Entrez des détails, une recette personnelle ou un lien...' : 'Enter details, a personal recipe, or a link...'}
+                      className="w-full h-64 bg-[var(--secondary)] border border-[var(--accent)] rounded-3xl p-6 text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none resize-none leading-relaxed"
+                    />
+                  </section>
+
+                  <section className="p-6 bg-orange-50 rounded-3xl border border-orange-100">
+                    <div className="flex items-center gap-3 text-orange-700 mb-2">
+                      <AlertCircle size={18} />
+                      <h4 className="font-bold text-sm">{lang === 'fr' ? 'Astuce' : 'Pro Tip'}</h4>
+                    </div>
+                    <p className="text-xs text-orange-600 leading-relaxed">
+                      {lang === 'fr' 
+                        ? "Utilisez cet espace pour noter des instructions spécifiques, des liens vers des blogs de cuisine ou vos propres variantes de recettes."
+                        : "Use this space to jot down specific instructions, links to food blogs, or your own recipe variations."}
+                    </p>
+                  </section>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Recipe Detail Modal (for Planner) */}
       <AnimatePresence>
