@@ -71,7 +71,9 @@ import {
   collection, 
   query, 
   where, 
-  getDocs 
+  getDocs,
+  handleFirestoreError,
+  OperationType
 } from './firebase';
 import { User } from 'firebase/auth';
 
@@ -429,6 +431,54 @@ const COMMON_INGREDIENTS = [
   "Almond Milk", "Oat Milk", "Coconut Water", "Greek Feta", "Goat Cheese", "Prosciutto", "Salami", "Turkey Breast"
 ];
 
+// Error Boundary Component
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let errorMessage = "Something went wrong.";
+      try {
+        const parsed = JSON.parse(this.state.error.message);
+        if (parsed.error) errorMessage = `Firestore Error: ${parsed.error}`;
+      } catch (e) {
+        errorMessage = this.state.error.message || errorMessage;
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] p-6">
+          <div className="max-w-md w-full bg-[var(--secondary)] p-8 rounded-[32px] shadow-xl text-center space-y-6">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-2xl font-serif font-bold">Oops!</h2>
+            <p className="text-[#8E8E8E] text-sm leading-relaxed">{errorMessage}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all"
+            >
+              Reload Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [lang, setLang] = useState<Language>(() => {
     const saved = localStorage.getItem('mealmaker_lang');
@@ -612,6 +662,7 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isProcessingHousehold, setIsProcessingHousehold] = useState(false);
   const [householdNameInput, setHouseholdNameInput] = useState('');
   const [inviteCodeInput, setInviteCodeInput] = useState('');
 
@@ -694,6 +745,7 @@ export default function App() {
   // Push Local Data to Firebase when joining a household for the first time
   const pushLocalDataToFirebase = async (householdId: string) => {
     setIsSyncing(true);
+    const path = `inventory/${householdId}`;
     try {
       await setDoc(doc(db, 'inventory', householdId), {
         householdId,
@@ -714,7 +766,7 @@ export default function App() {
         recipes: favorites
       });
     } catch (err) {
-      console.error("Error pushing local data:", err);
+      handleFirestoreError(err, OperationType.WRITE, path);
     } finally {
       setIsSyncing(false);
     }
@@ -772,7 +824,8 @@ export default function App() {
   };
 
   const createHousehold = async () => {
-    if (!user || !householdNameInput) return;
+    if (!user || !householdNameInput || isProcessingHousehold) return;
+    setIsProcessingHousehold(true);
     const householdId = doc(collection(db, 'households')).id;
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     
@@ -784,54 +837,73 @@ export default function App() {
       members: [user.uid]
     };
 
-    await setDoc(doc(db, 'households', householdId), newHousehold);
-    await updateDoc(doc(db, 'users', user.uid), { householdId });
-    setUserProfile(prev => ({ ...prev, householdId }));
-    
-    // Push current local data to the new household
-    await pushLocalDataToFirebase(householdId);
-    setNotification({ message: t('householdCreated'), type: 'success' });
+    try {
+      await setDoc(doc(db, 'households', householdId), newHousehold);
+      await updateDoc(doc(db, 'users', user.uid), { householdId });
+      setUserProfile(prev => ({ ...prev, householdId }));
+      
+      // Push current local data to the new household
+      await pushLocalDataToFirebase(householdId);
+      setNotification({ message: t('householdCreated'), type: 'success' });
+      setHouseholdNameInput('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `households/${householdId}`);
+    } finally {
+      setIsProcessingHousehold(false);
+    }
   };
 
   const joinHousehold = async () => {
-    if (!user || !inviteCodeInput) return;
-    const q = query(collection(db, 'households'), where('inviteCode', '==', inviteCodeInput.toUpperCase()));
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      const householdDoc = querySnapshot.docs[0];
-      const householdId = householdDoc.id;
-      const data = householdDoc.data();
+    if (!user || !inviteCodeInput || isProcessingHousehold) return;
+    setIsProcessingHousehold(true);
+    try {
+      const q = query(collection(db, 'households'), where('inviteCode', '==', inviteCodeInput.toUpperCase()));
+      const querySnapshot = await getDocs(q);
       
-      if (!data.members.includes(user.uid)) {
-        await updateDoc(doc(db, 'households', householdId), {
-          members: [...data.members, user.uid]
-        });
+      if (!querySnapshot.empty) {
+        const householdDoc = querySnapshot.docs[0];
+        const householdId = householdDoc.id;
+        const data = householdDoc.data();
+        
+        if (!data.members.includes(user.uid)) {
+          await updateDoc(doc(db, 'households', householdId), {
+            members: [...data.members, user.uid]
+          });
+        }
+        
+        await updateDoc(doc(db, 'users', user.uid), { householdId });
+        setUserProfile(prev => ({ ...prev, householdId }));
+        setNotification({ message: t('householdJoined'), type: 'success' });
+        setInviteCodeInput('');
+      } else {
+        setNotification({ message: t('errorJoiningHousehold'), type: 'info' });
       }
-      
-      await updateDoc(doc(db, 'users', user.uid), { householdId });
-      setUserProfile(prev => ({ ...prev, householdId }));
-      setNotification({ message: t('householdJoined'), type: 'success' });
-    } else {
-      setNotification({ message: t('errorJoiningHousehold'), type: 'info' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'households');
+    } finally {
+      setIsProcessingHousehold(false);
     }
   };
 
   const leaveHousehold = async () => {
     if (!user || !userProfile.householdId || !household) return;
     
-    const newMembers = household.members.filter((m: string) => m !== user.uid);
-    if (newMembers.length === 0) {
-      // Optional: delete household if last member leaves
-    } else {
-      await updateDoc(doc(db, 'households', userProfile.householdId), {
-        members: newMembers
-      });
+    try {
+      const newMembers = household.members.filter((m: string) => m !== user.uid);
+      if (newMembers.length === 0) {
+        // Optional: delete household if last member leaves
+      } else {
+        await updateDoc(doc(db, 'households', userProfile.householdId), {
+          members: newMembers
+        });
+      }
+      
+      await updateDoc(doc(db, 'users', user.uid), { householdId: null });
+      setUserProfile(prev => ({ ...prev, householdId: null }));
+      setHousehold(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `households/${userProfile.householdId}`);
     }
-    
-    await updateDoc(doc(db, 'users', user.uid), { householdId: null });
-    setUserProfile(prev => ({ ...prev, householdId: null }));
-    setHousehold(null);
   };
 
   // Debounced Sync to Firestore
@@ -1544,7 +1616,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans selection:bg-[var(--accent)]">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans selection:bg-[var(--accent)]">
       {/* Header */}
       <header className="border-b border-[var(--accent)] bg-[var(--bg)]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -2929,10 +3002,12 @@ export default function App() {
                               />
                               <button 
                                 onClick={createHousehold}
-                                disabled={!householdNameInput}
-                                className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+                                disabled={!householdNameInput || isProcessingHousehold}
+                                className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                               >
-                                {t('create')}
+                                {isProcessingHousehold ? (
+                                  <RefreshCw size={16} className="animate-spin" />
+                                ) : t('create')}
                               </button>
                             </div>
 
@@ -2947,10 +3022,12 @@ export default function App() {
                               />
                               <button 
                                 onClick={joinHousehold}
-                                disabled={!inviteCodeInput}
-                                className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+                                disabled={!inviteCodeInput || isProcessingHousehold}
+                                className="w-full py-3 bg-[var(--primary)] text-[var(--bg)] rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                               >
-                                {t('join')}
+                                {isProcessingHousehold ? (
+                                  <RefreshCw size={16} className="animate-spin" />
+                                ) : t('join')}
                               </button>
                             </div>
                           </div>
@@ -3345,6 +3422,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
