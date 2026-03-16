@@ -78,7 +78,7 @@ service cloud.firestore {
     }
 
     function isValidOptionalString(data, field, maxLen) {
-      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
     }
 
     // ===============================================================
@@ -94,8 +94,7 @@ service cloud.firestore {
     }
 
     function isValidHousehold(data) {
-      return data.keys().hasOnly(['id', 'name', 'ownerId', 'inviteCode', 'members']) &&
-             data.id is string && 
+      return data.id is string && 
              isValidString(data.name, 100) &&
              data.ownerId is string && 
              isValidString(data.inviteCode, 10) && 
@@ -138,9 +137,12 @@ service cloud.firestore {
     match /households/{householdId} {
       allow read: if isAuthenticated() && (isHouseholdMember(householdId) || isAdmin());
       
-      allow create: if isAuthenticated() && isValidHousehold(request.resource.data) && 
+      allow create: if isAuthenticated() && 
+                      isValidHousehold(request.resource.data) && 
+                      request.resource.data.id == householdId &&
                       request.resource.data.ownerId == request.auth.uid &&
-                      request.resource.data.members == [request.auth.uid];
+                      request.resource.data.members.size() == 1 &&
+                      request.resource.data.members[0] == request.auth.uid;
                       
       allow update: if isAuthenticated() && isValidHousehold(request.resource.data) && (
                       // Case 1: Owner updates household settings
