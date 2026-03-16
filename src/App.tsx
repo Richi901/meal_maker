@@ -611,6 +611,7 @@ export default function App() {
   const [household, setHousehold] = useState<any>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [householdNameInput, setHouseholdNameInput] = useState('');
   const [inviteCodeInput, setInviteCodeInput] = useState('');
 
@@ -720,10 +721,21 @@ export default function App() {
   };
 
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      console.error("Login error:", err);
+    } catch (err: any) {
+      // Ignore cancelled popup errors as they are usually user-triggered
+      if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+        console.error("Login error:", err);
+        setNotification({ 
+          message: lang === 'fr' ? "Erreur de connexion. Veuillez réessayer." : "Login error. Please try again.", 
+          type: 'info' 
+        });
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -2848,10 +2860,11 @@ export default function App() {
                         </p>
                         <button 
                           onClick={handleLogin}
-                          className="px-8 py-3 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-semibold hover:opacity-90 transition-all flex items-center gap-2 mx-auto"
+                          disabled={isLoggingIn}
+                          className="px-8 py-3 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-semibold hover:opacity-90 transition-all flex items-center gap-2 mx-auto disabled:opacity-50"
                         >
                           <Users size={18} />
-                          {t('signInWithGoogle')}
+                          {isLoggingIn ? (lang === 'fr' ? 'Connexion...' : 'Signing in...') : t('signInWithGoogle')}
                         </button>
                       </div>
                     ) : (
@@ -2872,7 +2885,8 @@ export default function App() {
                           </div>
                           <button 
                             onClick={handleLogout}
-                            className="text-xs font-bold text-red-500 hover:opacity-70 transition-opacity"
+                            disabled={isLoggingIn}
+                            className="text-xs font-bold text-red-500 hover:opacity-70 transition-opacity disabled:opacity-50"
                           >
                             {t('signOut')}
                           </button>
