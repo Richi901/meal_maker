@@ -61,8 +61,6 @@ import {
   db, 
   googleProvider, 
   signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
   signOut, 
   onAuthStateChanged, 
   doc, 
@@ -619,21 +617,6 @@ export default function App() {
 
   // Auth Effect
   useEffect(() => {
-    const checkRedirect = async () => {
-      try {
-        await getRedirectResult(auth);
-      } catch (err: any) {
-        if (err.code !== 'auth/cancelled-popup-request' && 
-            err.code !== 'auth/popup-closed-by-user' &&
-            err.code !== 'auth/user-cancelled') {
-          console.error("Redirect login error:", err);
-        }
-      }
-    };
-    checkRedirect();
-  }, []);
-
-  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -741,24 +724,39 @@ export default function App() {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
     try {
-      // Detect mobile device
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-      
-      if (isMobile) {
-        await signInWithRedirect(auth, googleProvider);
-      } else {
-        await signInWithPopup(auth, googleProvider);
-      }
+      // Always prefer signInWithPopup in this environment as per guidelines
+      await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       // Ignore cancelled popup errors as they are usually user-triggered
-      if (err.code !== 'auth/cancelled-popup-request' && 
-          err.code !== 'auth/popup-closed-by-user' &&
-          err.code !== 'auth/user-cancelled') {
-        console.error("Login error:", err);
+      if (err.code === 'auth/cancelled-popup-request' || 
+          err.code === 'auth/popup-closed-by-user' ||
+          err.code === 'auth/user-cancelled') {
+        // Do nothing
+      } else if (err.code === 'auth/popup-blocked') {
         setNotification({ 
-          message: lang === 'fr' ? "Erreur de connexion. Veuillez réessayer." : "Login error. Please try again.", 
+          message: lang === 'fr' 
+            ? "Le popup a été bloqué. Veuillez autoriser les popups ou ouvrir l'application dans un nouvel onglet." 
+            : "Popup was blocked. Please allow popups or open the app in a new tab.", 
           type: 'info' 
         });
+      } else {
+        console.error("Login error:", err);
+        
+        // Check if we are in an iframe
+        const isInIframe = window.self !== window.top;
+        if (isInIframe) {
+          setNotification({ 
+            message: lang === 'fr' 
+              ? "La connexion peut échouer dans un aperçu. Essayez d'ouvrir l'application dans un nouvel onglet." 
+              : "Login may fail in preview. Try opening the app in a new tab.", 
+            type: 'info' 
+          });
+        } else {
+          setNotification({ 
+            message: lang === 'fr' ? "Erreur de connexion. Veuillez réessayer." : "Login error. Please try again.", 
+            type: 'info' 
+          });
+        }
       }
     } finally {
       setIsLoggingIn(false);
