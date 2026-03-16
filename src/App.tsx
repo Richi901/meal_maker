@@ -61,6 +61,8 @@ import {
   db, 
   googleProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged, 
   doc, 
@@ -617,6 +619,21 @@ export default function App() {
 
   // Auth Effect
   useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        await getRedirectResult(auth);
+      } catch (err: any) {
+        if (err.code !== 'auth/cancelled-popup-request' && 
+            err.code !== 'auth/popup-closed-by-user' &&
+            err.code !== 'auth/user-cancelled') {
+          console.error("Redirect login error:", err);
+        }
+      }
+    };
+    checkRedirect();
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -724,10 +741,19 @@ export default function App() {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      // Detect mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      
+      if (isMobile) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (err: any) {
       // Ignore cancelled popup errors as they are usually user-triggered
-      if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+      if (err.code !== 'auth/cancelled-popup-request' && 
+          err.code !== 'auth/popup-closed-by-user' &&
+          err.code !== 'auth/user-cancelled') {
         console.error("Login error:", err);
         setNotification({ 
           message: lang === 'fr' ? "Erreur de connexion. Veuillez réessayer." : "Login error. Please try again.", 
