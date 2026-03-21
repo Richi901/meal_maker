@@ -63,6 +63,10 @@ import {
   db, 
   googleProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
+  setPersistence,
+  browserLocalPersistence,
   signOut, 
   onAuthStateChanged, 
   doc, 
@@ -749,7 +753,7 @@ export default function App() {
   const [favoriteCategory, setFavoriteCategory] = useState<string>('Any');
   const [expandedFavoriteIds, setExpandedFavoriteIds] = useState<string[]>([]);
   const [openPlannerId, setOpenPlannerId] = useState<string | null>(null);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const [manualShoppingList, setManualShoppingList] = useState<string[]>(() => {
     const saved = localStorage.getItem('mealmaker_manual_shopping');
@@ -857,6 +861,30 @@ export default function App() {
     }
   }, [notification]);
 
+  // Handle Firebase Redirect Result
+  useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          // User signed in successfully via redirect
+          console.log("Redirect sign-in success:", result.user.email);
+        }
+      } catch (err: any) {
+        console.error("Redirect sign-in error:", err);
+        if (err.code === 'auth/missing-initial-state') {
+          setNotification({ 
+            message: lang === 'fr' 
+              ? "Erreur de session. Veuillez réessayer de vous connecter." 
+              : "Session error. Please try signing in again.", 
+            type: 'error' 
+          });
+        }
+      }
+    };
+    checkRedirect();
+  }, [lang]);
+
   // Push Local Data to Firebase when joining a household for the first time
   const pushLocalDataToFirebase = async (householdId: string) => {
     setIsSyncing(true);
@@ -891,40 +919,19 @@ export default function App() {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
     try {
-      // Always prefer signInWithPopup in this environment as per guidelines
-      await signInWithPopup(auth, googleProvider);
+      // Force local persistence for better WebView compatibility
+      await setPersistence(auth, browserLocalPersistence);
+      
+      // Force Redirect method as requested for APK/WebView compatibility
+      await signInWithRedirect(auth, googleProvider);
     } catch (err: any) {
-      // Ignore cancelled popup errors as they are usually user-triggered
-      if (err.code === 'auth/cancelled-popup-request' || 
-          err.code === 'auth/popup-closed-by-user' ||
-          err.code === 'auth/user-cancelled') {
-        // Do nothing
-      } else if (err.code === 'auth/popup-blocked') {
-        setNotification({ 
-          message: lang === 'fr' 
-            ? "Le popup a été bloqué. Veuillez autoriser les popups ou ouvrir l'application dans un nouvel onglet." 
-            : "Popup was blocked. Please allow popups or open the app in a new tab.", 
-          type: 'info' 
-        });
-      } else {
-        console.error("Login error:", err);
-        
-        // Check if we are in an iframe
-        const isInIframe = window.self !== window.top;
-        if (isInIframe) {
-          setNotification({ 
-            message: lang === 'fr' 
-              ? "La connexion peut échouer dans un aperçu. Essayez d'ouvrir l'application dans un nouvel onglet." 
-              : "Login may fail in preview. Try opening the app in a new tab.", 
-            type: 'info' 
-          });
-        } else {
-          setNotification({ 
-            message: lang === 'fr' ? "Erreur de connexion. Veuillez réessayer." : "Login error. Please try again.", 
-            type: 'info' 
-          });
-        }
-      }
+      console.error("Login error:", err);
+      setNotification({ 
+        message: lang === 'fr' 
+          ? "Erreur lors de la connexion. Veuillez réessayer." 
+          : "Error during login. Please try again.", 
+        type: 'error' 
+      });
     } finally {
       setIsLoggingIn(false);
     }
@@ -3625,10 +3632,13 @@ export default function App() {
             initial={{ opacity: 0, y: 50, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 20, x: '-50%' }}
-            className="fixed bottom-24 left-1/2 z-[200] bg-[var(--primary)] text-[var(--bg)] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 min-w-[200px] justify-center"
+            className={cn(
+              "fixed bottom-24 left-1/2 z-[200] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 min-w-[200px] justify-center",
+              notification.type === 'error' ? "bg-red-500 text-white" : "bg-[var(--primary)] text-[var(--bg)]"
+            )}
           >
             <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-              <Check size={14} />
+              {notification.type === 'error' ? <AlertCircle size={14} /> : <Check size={14} />}
             </div>
             <span className="text-sm font-bold tracking-wide">{notification.message}</span>
           </motion.div>
