@@ -29,7 +29,8 @@ import {
   Edit2,
   Settings,
   Moon,
-  Sun
+  Sun,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -1762,26 +1763,6 @@ export default function App() {
       <header className="border-b border-[var(--accent)] bg-[var(--bg)]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 bg-[var(--secondary)] p-1 rounded-xl mr-2">
-              <button 
-                onClick={() => setLang('en')}
-                className={cn(
-                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
-                  lang === 'en' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
-                )}
-              >
-                EN
-              </button>
-              <button 
-                onClick={() => setLang('fr')}
-                className={cn(
-                  "px-2 py-1 text-[10px] font-bold rounded-lg transition-all",
-                  lang === 'fr' ? "bg-[var(--bg)] text-[var(--primary)] shadow-sm" : "text-[#8E8E8E] hover:text-[var(--primary)]"
-                )}
-              >
-                FR
-              </button>
-            </div>
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center text-[var(--bg)]">
                 <ChefHat size={24} />
@@ -3250,6 +3231,33 @@ export default function App() {
                           )}
                         </button>
                       ))}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-6 flex items-center gap-2">
+                      <Globe size={18} />
+                      {lang === 'fr' ? 'Langue' : 'Language'}
+                    </h3>
+                    <div className="flex items-center gap-2 bg-[var(--secondary)] p-1.5 rounded-2xl w-fit">
+                      <button 
+                        onClick={() => setLang('en')}
+                        className={cn(
+                          "px-6 py-2 text-xs font-bold rounded-xl transition-all",
+                          lang === 'en' ? "bg-[var(--bg)] text-[var(--primary)] shadow-md" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                        )}
+                      >
+                        English
+                      </button>
+                      <button 
+                        onClick={() => setLang('fr')}
+                        className={cn(
+                          "px-6 py-2 text-xs font-bold rounded-xl transition-all",
+                          lang === 'fr' ? "bg-[var(--bg)] text-[var(--primary)] shadow-md" : "text-[#8E8E8E] hover:text-[var(--primary)]"
+                        )}
+                      >
+                        Français
+                      </button>
                     </div>
                   </section>
                 </div>
