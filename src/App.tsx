@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { 
   Plus, 
@@ -301,7 +301,9 @@ function DraggableMealItem({
   editingNote,
   onUpdateNote,
   onCancelEdit,
-  onViewDetails
+  onViewDetails,
+  onMarkDone,
+  lang
 }: { 
   item: MealItem, 
   day: string, 
@@ -313,7 +315,9 @@ function DraggableMealItem({
   editingNote?: { id: string, dayKey: string, text: string } | null,
   onUpdateNote?: (e: React.FormEvent) => void,
   onCancelEdit?: () => void,
-  onViewDetails?: (id: string, dayKey: string, note: Note) => void
+  onViewDetails?: (id: string, dayKey: string, note: Note) => void,
+  onMarkDone?: (recipe: Recipe, dayKey: string) => void,
+  lang: string
 }) {
   const isNote = 'type' in item && item.type === 'note';
   const isEditing = isNote && editingNote?.id === item.id && editingNote?.dayKey === day;
@@ -398,18 +402,32 @@ function DraggableMealItem({
               </>
             )}
             {!isNote && isFavorite && onToggleFavorite && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFavorite(item as Recipe);
-                }}
-                className={cn(
-                  "shrink-0 transition-colors p-1",
-                  isFavorite(item.id) ? "text-red-500" : "text-[#8E8E8E] hover:text-red-500"
+              <div className="flex items-center gap-1">
+                {onMarkDone && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkDone(item as Recipe, day);
+                    }}
+                    className="shrink-0 text-[#8E8E8E] hover:text-green-600 transition-colors p-1"
+                    title={lang === 'fr' ? 'Marquer comme fait' : 'Mark as done'}
+                  >
+                    <Check size={14} />
+                  </button>
                 )}
-              >
-                <Heart size={12} className={cn(isFavorite(item.id) && "fill-current")} />
-              </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(item as Recipe);
+                  }}
+                  className={cn(
+                    "shrink-0 transition-colors p-1",
+                    isFavorite(item.id) ? "text-red-500" : "text-[#8E8E8E] hover:text-red-500"
+                  )}
+                >
+                  <Heart size={12} className={cn(isFavorite(item.id) && "fill-current")} />
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -452,7 +470,9 @@ function DroppableDay({
   onUpdateNote,
   onCancelEdit,
   onAddNote,
-  onViewDetails
+  onViewDetails,
+  onMarkDone,
+  lang
 }: { 
   day: string, 
   dayKey: string,
@@ -466,7 +486,9 @@ function DroppableDay({
   onUpdateNote: (e: React.FormEvent) => void,
   onCancelEdit: () => void,
   onAddNote: (dayKey: string) => void,
-  onViewDetails: (id: string, dayKey: string, note: Note) => void
+  onViewDetails: (id: string, dayKey: string, note: Note) => void,
+  onMarkDone: (recipe: Recipe, dayKey: string) => void,
+  lang: string
 }) {
   const { setNodeRef, isOver } = useSortable({ id: dayKey });
 
@@ -505,6 +527,8 @@ function DroppableDay({
                 onUpdateNote={onUpdateNote}
                 onCancelEdit={onCancelEdit}
                 onViewDetails={onViewDetails}
+                onMarkDone={onMarkDone}
+                lang={lang}
               />
             ))
           ) : (
@@ -741,6 +765,10 @@ export default function App() {
   const [viewingPlannerRecipe, setViewingPlannerRecipe] = useState<Recipe | null>(null);
   const [editingNote, setEditingNote] = useState<{ id: string, dayKey: string, text: string } | null>(null);
   const [viewingNoteDetails, setViewingNoteDetails] = useState<{ id: string, dayKey: string, note: Note } | null>(null);
+  const [finishingRecipe, setFinishingRecipe] = useState<{ recipe: Recipe, dayKey: string } | null>(null);
+  const [selectedIngredientsToRemove, setSelectedIngredientsToRemove] = useState<{name: string, category: InventoryCategory}[]>([]);
+  const [lastRemovedItem, setLastRemovedItem] = useState<{ item: MealItem, dayKey: string, index: number } | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<MealItem | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -1424,6 +1452,35 @@ export default function App() {
     }));
   };
 
+  useEffect(() => {
+    if (finishingRecipe) {
+      const initial: {name: string, category: InventoryCategory}[] = [];
+      finishingRecipe.recipe.ingredients.forEach(ing => {
+        const ingName = typeof ing === 'string' ? ing : ing.name;
+        const categories: InventoryCategory[] = ['pantry', 'refrigerator', 'freezer'];
+        for (const cat of categories) {
+          const exactItem = inventory[cat].find(i => 
+            i.toLowerCase().includes(ingName.toLowerCase()) || 
+            ingName.toLowerCase().includes(i.toLowerCase())
+          );
+          if (exactItem) {
+            if (!initial.some(item => item.name === exactItem && item.category === cat)) {
+              initial.push({ name: exactItem, category: cat });
+            }
+            break;
+          }
+        }
+      });
+      setSelectedIngredientsToRemove(initial);
+    } else {
+      setSelectedIngredientsToRemove([]);
+    }
+  }, [finishingRecipe]);
+
+  const onMarkDone = (recipe: Recipe, dayKey: string) => {
+    setFinishingRecipe({ recipe, dayKey });
+  };
+
   const getDayKey = (day: string, week: number) => {
     if (plannerMode === 'week') return day;
     return `Week ${week}-${day}`;
@@ -1486,10 +1543,37 @@ export default function App() {
   };
 
   const removeFromMealPlan = (recipeId: string, dayKey: string) => {
+    const items = mealPlan[dayKey] || [];
+    const index = items.findIndex(i => i.id === recipeId);
+    if (index !== -1) {
+      const item = items[index];
+      setLastRemovedItem({ item, dayKey, index });
+      
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = setTimeout(() => {
+        setLastRemovedItem(null);
+      }, 5000);
+    }
+
     setMealPlan(prev => ({
       ...prev,
       [dayKey]: (prev[dayKey] || []).filter(r => r.id !== recipeId)
     }));
+  };
+
+  const undoDelete = () => {
+    if (!lastRemovedItem) return;
+    const { item, dayKey, index } = lastRemovedItem;
+    setMealPlan(prev => {
+      const newDayItems = [...(prev[dayKey] || [])];
+      newDayItems.splice(index, 0, item);
+      return {
+        ...prev,
+        [dayKey]: newDayItems
+      };
+    });
+    setLastRemovedItem(null);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
   };
 
   const toggleRecipeSelection = (id: string) => {
@@ -3012,6 +3096,8 @@ export default function App() {
                         onCancelEdit={() => setEditingNote(null)}
                         onAddNote={addNoteToPlanner}
                         onViewDetails={(id, dayKey, note) => setViewingNoteDetails({ id, dayKey, note })}
+                        onMarkDone={onMarkDone}
+                        lang={lang}
                       />
                     );
                   })}
@@ -3624,6 +3710,213 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Done Popup */}
+      <AnimatePresence>
+        {finishingRecipe && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setFinishingRecipe(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-2xl max-h-[90vh] bg-[var(--bg)] rounded-[48px] shadow-2xl z-[160] overflow-hidden flex flex-col border border-[var(--accent)]"
+            >
+              <div className="p-8 border-b border-[var(--accent)] flex items-center justify-between bg-[var(--secondary)]/30">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-[var(--primary)] text-[var(--bg)] rounded-2xl flex items-center justify-center shadow-lg shadow-[var(--primary)]/20">
+                    <Check size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-serif font-bold">{lang === 'fr' ? 'Recette terminée !' : 'Recipe Done!'}</h2>
+                    <p className="text-sm text-[#8E8E8E]">{finishingRecipe.recipe.title}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setFinishingRecipe(null)}
+                  className="p-3 hover:bg-[var(--secondary)] rounded-2xl transition-colors text-[var(--primary)]"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+                <div className="mb-8">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-4">
+                    {lang === 'fr' ? 'Ingrédients utilisés' : 'Ingredients Used'}
+                  </h3>
+                  <p className="text-sm text-[#8E8E8E] mb-6 leading-relaxed">
+                    {lang === 'fr' 
+                      ? "Avez-vous utilisé le dernier de ces articles ? Retirez-les de votre inventaire pour garder votre cuisine à jour." 
+                      : "Did you use the last of these items? Remove them from your inventory to keep your kitchen up to date."}
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {finishingRecipe.recipe.ingredients.map((ing, idx) => {
+                      const ingName = typeof ing === 'string' ? ing : ing.name;
+                      // Try to find if this ingredient is in any inventory category
+                      let foundCategory: InventoryCategory | null = null;
+                      const categories: InventoryCategory[] = ['pantry', 'refrigerator', 'freezer'];
+                      
+                      for (const cat of categories) {
+                        if (inventory[cat].some(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()))) {
+                          foundCategory = cat;
+                          break;
+                        }
+                      }
+
+                      return (
+                        <div 
+                          key={idx}
+                          onClick={() => {
+                            if (!foundCategory) return;
+                            const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
+                            if (!exactItem) return;
+
+                            const isSelected = selectedIngredientsToRemove.some(item => item.name === exactItem && item.category === foundCategory);
+                            if (isSelected) {
+                              setSelectedIngredientsToRemove(prev => prev.filter(item => !(item.name === exactItem && item.category === foundCategory)));
+                            } else {
+                              setSelectedIngredientsToRemove(prev => [...prev, { name: exactItem, category: foundCategory! }]);
+                            }
+                          }}
+                          className={cn(
+                            "p-4 rounded-3xl border flex items-center justify-between transition-all cursor-pointer",
+                            foundCategory 
+                              ? (selectedIngredientsToRemove.some(item => {
+                                  const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
+                                  return item.name === exactItem && item.category === foundCategory;
+                                }) 
+                                  ? "bg-[var(--primary)] text-[var(--bg)] border-[var(--primary)] shadow-md" 
+                                  : "bg-[var(--bg)] border-[var(--primary)]/30 shadow-sm opacity-60")
+                              : "bg-[var(--secondary)]/50 border-transparent opacity-40 cursor-default"
+                          )}
+                        >
+                          <div className="flex flex-col">
+                            <span className={cn(
+                              "text-sm font-medium",
+                              foundCategory && selectedIngredientsToRemove.some(item => {
+                                const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
+                                return item.name === exactItem && item.category === foundCategory;
+                              }) ? "text-[var(--bg)]" : "text-[var(--primary)]"
+                            )}>{ingName}</span>
+                            {foundCategory && (
+                              <span className={cn(
+                                "text-[10px] uppercase tracking-wider font-bold",
+                                selectedIngredientsToRemove.some(item => {
+                                  const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
+                                  return item.name === exactItem && item.category === foundCategory;
+                                }) ? "text-[var(--bg)]/70" : "text-[var(--primary)]/60"
+                              )}>
+                                {t(foundCategory)}
+                              </span>
+                            )}
+                          </div>
+
+                          {foundCategory && (
+                            <div className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center border transition-all",
+                              selectedIngredientsToRemove.some(item => {
+                                const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
+                                return item.name === exactItem && item.category === foundCategory;
+                              }) 
+                                ? "bg-[var(--bg)] text-[var(--primary)] border-[var(--bg)]" 
+                                : "bg-transparent border-[var(--primary)]/30 text-transparent"
+                            )}>
+                              <Check size={14} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="bg-[var(--secondary)]/30 p-6 rounded-[32px] border border-[var(--accent)]">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-[#8E8E8E] mb-2">
+                    {lang === 'fr' ? 'Prochaines étapes' : 'Next Steps'}
+                  </h3>
+                  <p className="text-xs text-[#8E8E8E] leading-relaxed">
+                    {lang === 'fr' 
+                      ? "En cliquant sur 'Terminer', cette recette sera marquée comme faite. Souhaitez-vous la retirer de votre planning ?" 
+                      : "Clicking 'Finish' will mark this recipe as done. Would you like to remove it from your planner?"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-8 bg-[var(--secondary)]/30 border-t border-[var(--accent)] flex flex-col sm:flex-row gap-4">
+                <button 
+                  onClick={() => {
+                    // Remove selected items from inventory
+                    selectedIngredientsToRemove.forEach(item => {
+                      removeInventoryItem(item.name, item.category);
+                    });
+                    removeFromMealPlan(finishingRecipe.recipe.id, finishingRecipe.dayKey);
+                    setFinishingRecipe(null);
+                    setNotification({
+                      message: lang === 'fr' ? 'Recette terminée et planning mis à jour' : 'Recipe finished and planner updated',
+                      type: 'success'
+                    });
+                  }}
+                  className="flex-1 py-4 bg-[var(--primary)] text-[var(--bg)] rounded-2xl font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[var(--primary)]/20 flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  {lang === 'fr' ? 'Terminer et Retirer' : 'Finish & Remove'}
+                </button>
+                <button 
+                  onClick={() => {
+                    // Remove selected items from inventory
+                    selectedIngredientsToRemove.forEach(item => {
+                      removeInventoryItem(item.name, item.category);
+                    });
+                    setFinishingRecipe(null);
+                    setNotification({
+                      message: lang === 'fr' ? 'Recette marquée comme terminée' : 'Recipe marked as finished',
+                      type: 'success'
+                    });
+                  }}
+                  className="flex-1 py-4 bg-[var(--bg)] text-[var(--primary)] border border-[var(--accent)] rounded-2xl font-bold uppercase tracking-widest hover:bg-[var(--secondary)] transition-all flex items-center justify-center gap-2"
+                >
+                  {lang === 'fr' ? 'Juste Terminer' : 'Just Finish'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Undo Pill */}
+      <AnimatePresence>
+        {lastRemovedItem && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            className="fixed bottom-36 left-1/2 z-[200] px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 bg-[var(--primary)] text-[var(--bg)] min-w-[200px] justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                <Trash2 size={14} />
+              </div>
+              <span className="text-sm font-bold tracking-wide">
+                {lang === 'fr' ? 'Recette supprimée' : 'Recipe deleted'}
+              </span>
+            </div>
+            <button 
+              onClick={undoDelete}
+              className="px-3 py-1 bg-[var(--bg)] text-[var(--primary)] rounded-full text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all"
+            >
+              {lang === 'fr' ? 'Annuler' : 'Undo'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Notification Bubble */}
       <AnimatePresence>
