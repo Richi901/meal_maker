@@ -1,0 +1,17 @@
+{
+  "name": "The Meal Maker",
+  "short_name": "Meal Maker",
+  "description": "Generate personalized recipes based on available ingredients, dietary restrictions, and cuisine preferences.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FDFCFB",
+  "theme_color": "#5A5A40",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

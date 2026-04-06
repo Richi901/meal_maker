@@ -766,7 +766,8 @@ export default function App() {
   const [editingNote, setEditingNote] = useState<{ id: string, dayKey: string, text: string } | null>(null);
   const [viewingNoteDetails, setViewingNoteDetails] = useState<{ id: string, dayKey: string, note: Note } | null>(null);
   const [finishingRecipe, setFinishingRecipe] = useState<{ recipe: Recipe, dayKey: string } | null>(null);
-  const [selectedIngredientsToRemove, setSelectedIngredientsToRemove] = useState<{name: string, category: InventoryCategory}[]>([]);
+  const [ingredientsToKeep, setIngredientsToKeep] = useState<{name: string, category: InventoryCategory}[]>([]);
+  const [availableInventoryItems, setAvailableInventoryItems] = useState<{name: string, category: InventoryCategory}[]>([]);
   const [lastRemovedItem, setLastRemovedItem] = useState<{ item: MealItem, dayKey: string, index: number } | null>(null);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1452,6 +1453,13 @@ export default function App() {
     }));
   };
 
+  const uncheckInventoryItem = (item: string, category: InventoryCategory) => {
+    setInventory(prev => ({
+      ...prev,
+      [category]: prev[category].filter(i => i !== item)
+    }));
+  };
+
   useEffect(() => {
     if (finishingRecipe) {
       const initial: {name: string, category: InventoryCategory}[] = [];
@@ -1471,9 +1479,11 @@ export default function App() {
           }
         }
       });
-      setSelectedIngredientsToRemove(initial);
+      setIngredientsToKeep(initial);
+      setAvailableInventoryItems(initial);
     } else {
-      setSelectedIngredientsToRemove([]);
+      setIngredientsToKeep([]);
+      setAvailableInventoryItems([]);
     }
   }, [finishingRecipe]);
 
@@ -3779,17 +3789,17 @@ export default function App() {
                             const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
                             if (!exactItem) return;
 
-                            const isSelected = selectedIngredientsToRemove.some(item => item.name === exactItem && item.category === foundCategory);
+                            const isSelected = ingredientsToKeep.some(item => item.name === exactItem && item.category === foundCategory);
                             if (isSelected) {
-                              setSelectedIngredientsToRemove(prev => prev.filter(item => !(item.name === exactItem && item.category === foundCategory)));
+                              setIngredientsToKeep(prev => prev.filter(item => !(item.name === exactItem && item.category === foundCategory)));
                             } else {
-                              setSelectedIngredientsToRemove(prev => [...prev, { name: exactItem, category: foundCategory! }]);
+                              setIngredientsToKeep(prev => [...prev, { name: exactItem, category: foundCategory! }]);
                             }
                           }}
                           className={cn(
                             "p-4 rounded-3xl border flex items-center justify-between transition-all cursor-pointer",
                             foundCategory 
-                              ? (selectedIngredientsToRemove.some(item => {
+                              ? (ingredientsToKeep.some(item => {
                                   const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
                                   return item.name === exactItem && item.category === foundCategory;
                                 }) 
@@ -3801,7 +3811,7 @@ export default function App() {
                           <div className="flex flex-col">
                             <span className={cn(
                               "text-sm font-medium",
-                              foundCategory && selectedIngredientsToRemove.some(item => {
+                              foundCategory && ingredientsToKeep.some(item => {
                                 const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
                                 return item.name === exactItem && item.category === foundCategory;
                               }) ? "text-[var(--bg)]" : "text-[var(--primary)]"
@@ -3809,7 +3819,7 @@ export default function App() {
                             {foundCategory && (
                               <span className={cn(
                                 "text-[10px] uppercase tracking-wider font-bold",
-                                selectedIngredientsToRemove.some(item => {
+                                ingredientsToKeep.some(item => {
                                   const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
                                   return item.name === exactItem && item.category === foundCategory;
                                 }) ? "text-[var(--bg)]/70" : "text-[var(--primary)]/60"
@@ -3822,7 +3832,7 @@ export default function App() {
                           {foundCategory && (
                             <div className={cn(
                               "w-6 h-6 rounded-full flex items-center justify-center border transition-all",
-                              selectedIngredientsToRemove.some(item => {
+                              ingredientsToKeep.some(item => {
                                 const exactItem = inventory[foundCategory!].find(i => i.toLowerCase().includes(ingName.toLowerCase()) || ingName.toLowerCase().includes(i.toLowerCase()));
                                 return item.name === exactItem && item.category === foundCategory;
                               }) 
@@ -3853,9 +3863,12 @@ export default function App() {
               <div className="p-8 bg-[var(--secondary)]/30 border-t border-[var(--accent)] flex flex-col sm:flex-row gap-4">
                 <button 
                   onClick={() => {
-                    // Remove selected items from inventory
-                    selectedIngredientsToRemove.forEach(item => {
-                      removeInventoryItem(item.name, item.category);
+                    // Uncheck items that are NOT in ingredientsToKeep
+                    availableInventoryItems.forEach(item => {
+                      const isKept = ingredientsToKeep.some(k => k.name === item.name && k.category === item.category);
+                      if (!isKept) {
+                        uncheckInventoryItem(item.name, item.category);
+                      }
                     });
                     removeFromMealPlan(finishingRecipe.recipe.id, finishingRecipe.dayKey);
                     setFinishingRecipe(null);
@@ -3871,9 +3884,12 @@ export default function App() {
                 </button>
                 <button 
                   onClick={() => {
-                    // Remove selected items from inventory
-                    selectedIngredientsToRemove.forEach(item => {
-                      removeInventoryItem(item.name, item.category);
+                    // Uncheck items that are NOT in ingredientsToKeep
+                    availableInventoryItems.forEach(item => {
+                      const isKept = ingredientsToKeep.some(k => k.name === item.name && k.category === item.category);
+                      if (!isKept) {
+                        uncheckInventoryItem(item.name, item.category);
+                      }
                     });
                     setFinishingRecipe(null);
                     setNotification({
